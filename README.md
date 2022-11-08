@@ -1,5 +1,14 @@
 # Nucleon Unit Tests
 
+First, install packages with:
+
+```shell
+yarn install
+
+or
+
+npm install
+```
 
 
 Try running some of the following tasks:
