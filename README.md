@@ -4,9 +4,10 @@ First, install packages with:
 
 ```shell
 yarn install
-
+```
 or
 
+```shell
 npm install
 ```
 

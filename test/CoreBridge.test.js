@@ -92,6 +92,33 @@ describe("CoreBridge", async function () {
           expect ( await bridge.gettrigerstate(accounts[1].address) ).to.be.equal(false);
 
       });
+
+      
+      
+    });
+
+
+    describe("_settrustedtrigers() Tests", async () => {
+      
+      it("_settrustedtrigers should revert with Can not be Zero adress", async () => {
+        
+        const { exchangeroom , bridge, accounts} = await deployCoreBridgeFixture();
+
+
+        await expect( bridge._settrustedtrigers(zeroAddress, true) ).to.be.revertedWith("Can not be Zero adress");  
+
+      });
+
+      it("_settrustedtrigers should revert", async () => {
+        
+        const { exchangeroom , bridge, accounts} = await deployCoreBridgeFixture();
+
+
+        await expect ( bridge.connect(accounts[1])._settrustedtrigers(accounts[1].address, true) ).to.be.reverted;  
+
+      });
+
+      
       
     });
 
