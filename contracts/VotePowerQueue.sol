@@ -18,8 +18,9 @@ library VotePowerQueue {
     queue.items[queue.end++] = item;
   }
 
-  function dequeue(InOutQueue storage queue) internal returns (QueueNode memory) {
+  function dequeue(InOutQueue storage queue, uint256 i) internal returns (QueueNode memory) {
     QueueNode memory item = queue.items[queue.start];
+    queue.items[i] = queue.items[queue.start];
     delete queue.items[queue.start++];
     return item;
   }
@@ -27,7 +28,7 @@ library VotePowerQueue {
   function queueLength(InOutQueue storage q) internal view returns (uint256 length) {
     return  q.end-q.start;
   }
-
+  
   function queueItems(InOutQueue storage q) internal view returns (QueueNode[] memory) {
     QueueNode[] memory items = new QueueNode[](q.end - q.start);
     for (uint256 i = q.start; i < q.end; i++) {
@@ -59,10 +60,10 @@ library VotePowerQueue {
     uint256 total = 0;
     for (uint256 i = q.start; i < q.end; i++) {
       if (q.items[i].endBlock > block.number) {
-        break;
+        continue ;
       }
       total += q.items[i].votePower;
-      dequeue(q);
+      dequeue(q,i);
     }
     return total;
   }
@@ -71,7 +72,7 @@ library VotePowerQueue {
     uint256 total = 0;
     for (uint256 i = q.start; i < q.end; i++) {
       if (q.items[i].endBlock > block.number) {
-        break;
+        continue;
       }
       total += q.items[i].votePower;
     }
