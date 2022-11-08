@@ -210,7 +210,7 @@ describe("Exchangeroom", async function () {
 
         let CFX_exchange_estim = await exchangeroom.CFX_exchange_estim(1)
 
-        console.log("CFX_exchange_estim " + CFX_exchange_estim);
+   //     console.log("CFX_exchange_estim " + CFX_exchange_estim);
 
         expect( await exchangeroom.CFX_exchange_estim(1)).to.equal(parseEther("1"))
 
