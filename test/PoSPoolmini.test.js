@@ -195,26 +195,10 @@ describe("PoSPoolmini", async function () {
 
   describe("decreaseStake()", async function () {
     it("should decrease staking amount", async () => {
-      const {
-        accounts,
-        pool,
-        bridge,
-        ONE_VOTE_CFX,
-        IDENTIFIER,
-        blsPubKey,
-        vrfPubKey,
-        blsPubKeyProof,
-      } = await deployPoSPoolminiFixture();
+      const {pool, ONE_VOTE_CFX,bridge, accounts} = await registeredPoolPoSPoolminiFixture();
+      //check that the pool is already registered
+      expect(await pool._poolRegisted()).to.be.equal(true);
 
-      //initializate
-      await pool.initialize();
-      await bridge.initialize(pool.address);
-      await pool._setbridges(bridge.address, bridge.address, bridge.address);
-
-      //register pool
-      await pool.register(IDENTIFIER, 1, blsPubKey, vrfPubKey, blsPubKeyProof, {
-        value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
-      });
       //check that the pool is already registered
       expect(await pool._poolRegisted()).to.be.equal(true);
 
@@ -251,5 +235,171 @@ describe("PoSPoolmini", async function () {
       expect(String(poolSummary.totalvotes)).to.be.equal("7");
     });
 
+    it('should not decrease staking amount', async () => {
+      const {pool, ONE_VOTE_CFX,bridge, accounts} = await registeredPoolPoSPoolminiFixture();
+      //check that the pool is already registered
+      expect(await pool._poolRegisted()).to.be.equal(true);
+
+      //check that the pool is already registered
+      expect(await pool._poolRegisted()).to.be.equal(true);
+
+      //check votes is equal to 1 = only the first deposit until now
+      let poolSummary = await pool.poolSummary();
+      expect(String(poolSummary.totalvotes)).to.be.equal("1");
+
+      //deposit 1 votes by user 1
+      await bridge.connect(accounts[1]).campounds(1, {
+        value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
+      });
+
+      //deposit 7 votes by user 2
+      await bridge.connect(accounts[2]).campounds(7, {
+        value: ethers.utils.parseEther(`${7 * ONE_VOTE_CFX}`),
+      });
+
+      await bridge.connect(accounts[3]).campounds(5, {
+        value: ethers.utils.parseEther(`${5 * ONE_VOTE_CFX}`),
+      });
+      poolSummary = await pool.poolSummary();
+      expect(String(poolSummary.totalvotes)).to.be.equal("14");
+
+      //unstake amount greather amount that has been staked
+      await expect(
+        bridge.connect(accounts[1]).handleUnstake(20)
+      ).to.eventually.rejected;
+
+      //string instead of uint64
+      await expect(
+        bridge.connect(accounts[3]).handleUnstake("a")
+      ).to.eventually.rejected;
+
+      //uint64[] instead of uint64
+      await expect(
+        bridge.connect(accounts[3]).handleUnstake([4, 3, 2, 1])
+      ).to.eventually.rejected;
+
+      poolSummary = await pool.poolSummary();
+      expect(String(poolSummary.totalvotes)).to.be.equal("14");
+    });
+
   });
+
+  describe("poolSummary()", async function() {
+    it('should return pool summary', async () => {
+      const { pool } = await registeredPoolPoSPoolminiFixture();
+      const poolSummary = await pool.poolSummary();
+      const { totalvotes, locking, locked, unlocking, unlocked, unclaimedInterests, claimedInterest } = poolSummary;
+      
+      expect(String(totalvotes)).to.be.equal("1")
+      expect(String(locking)).to.be.equal("1")
+      expect(String(locked)).to.be.equal("0")
+      expect(String(unlocking)).to.be.equal("0")
+      expect(String(unlocked)).to.be.equal("0")
+      expect(String(unclaimedInterests)).to.be.equal("0")
+      expect(String(claimedInterest)).to.be.equal("0")
+    });
+
+    it('should not return pool summary', async () => {
+      const { pool } = await registeredPoolPoSPoolminiFixture();
+      //call with parameter|
+      await expect(pool.poolSummary(2)).to.eventually.rejected;
+    });
+  });
+
+ describe("getInQueue()", async function() {
+  it('should return balance in queue', async () => {
+    const { pool, bridge, accounts, ONE_VOTE_CFX } = await registeredPoolPoSPoolminiFixture();
+    //check that the pool is already registered
+    expect(await pool._poolRegisted()).to.be.equal(true);
+
+    const votes = 1;
+
+    //deposit from user 3
+    await bridge.connect(accounts[3]).campounds(1, {
+      value: ethers.utils.parseEther(`${votes * ONE_VOTE_CFX}`),
+    });
+
+    const getInQueue = await pool.getInQueue();
+    //getInQueue[1] because the getInQueue[0] is the initial register in queue
+    const {votePower, endBlock} = getInQueue[1];
+    
+    expect(String(votePower)).to.be.equal(`${votes}`);
+    expect(Number(endBlock)).to.be.greaterThan(0);
+
+  });
+
+  it('should not return balance in queue', async () => {
+    const { pool, bridge, accounts, ONE_VOTE_CFX } = await registeredPoolPoSPoolminiFixture();
+    //check that the pool is already registered
+    expect(await pool._poolRegisted()).to.be.equal(true);
+
+    const votes = 1;
+
+    //deposit from user 3
+    await bridge.connect(accounts[3]).campounds(1, {
+      value: ethers.utils.parseEther(`${votes * ONE_VOTE_CFX}`),
+    });
+    
+    //call with parameters
+    await expect(pool.getInQueue(1, "0x0")).to.eventually.rejected;
+  });
+ });
+
+ describe("getOutQueue()", async function () {
+  it('should return balance out queue', async () => {
+    const { pool, bridge, accounts, ONE_VOTE_CFX } = await registeredPoolPoSPoolminiFixture();
+    //check that the pool is already registered
+    expect(await pool._poolRegisted()).to.be.equal(true);
+
+    const votes = 2;
+
+    //deposit from user 2
+    await bridge.connect(accounts[2]).campounds(votes, {
+      value: ethers.utils.parseEther(`${votes * ONE_VOTE_CFX}`),
+    });
+
+    //withdraw stake amount from the user 2
+    await bridge.connect(accounts[2]).handleUnstake(2);
+
+    let getOutQueue = await pool.getOutQueue();
+    
+    // is getOutQueue[0] because is the first outQueue
+    expect(String(getOutQueue[0].votePower)).to.be.equal(String(votes));
+    expect(Number(getOutQueue[0].endBlock)).to.be.greaterThan(0);
+
+    // deposit and withdraw from user 1
+    await bridge.connect(accounts[1]).campounds(1, {
+      value: ethers.utils.parseEther(`${1 * ONE_VOTE_CFX}`),
+    });
+    await bridge.connect(accounts[1]).handleUnstake(1);
+
+    getOutQueue = await pool.getOutQueue();
+
+    //check prev getOutQueue is the same
+    expect(String(getOutQueue[0].votePower)).to.be.equal(String(votes));
+    expect(Number(getOutQueue[0].endBlock)).to.be.greaterThan(0);
+
+    // is getOutQueue[1] because is the second outQueue
+    expect(String(getOutQueue[1].votePower)).to.be.equal(String(1));
+    expect(Number(getOutQueue[1].endBlock)).to.be.greaterThan(0);
+  });
+  it('should not return balance out queue', async () => {
+    const { pool, bridge, accounts, ONE_VOTE_CFX } = await registeredPoolPoSPoolminiFixture();
+    //check that the pool is already registered
+    expect(await pool._poolRegisted()).to.be.equal(true);
+
+    const votes = 2;
+
+    //deposit from user 2
+    await bridge.connect(accounts[2]).campounds(votes, {
+      value: ethers.utils.parseEther(`${votes * ONE_VOTE_CFX}`),
+    });
+
+    //withdraw stake amount from the user 2
+    await bridge.connect(accounts[2]).handleUnstake(2);
+
+    //call a bad parameter
+    await expect(pool.getOutQueue({amount:"2"})).to.eventually.rejected;
+  });
+ });
 });
