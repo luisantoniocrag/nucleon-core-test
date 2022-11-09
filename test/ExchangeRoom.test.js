@@ -231,53 +231,6 @@ describe("Exchangeroom", async function () {
 
     });
 
-    
-    
-    
-
-    
-        it("handleCFXexchangeXCFX should work", async function () {
-          const { exchangeroom , accounts, xcfx } = await deployExchangeroomFixture();
-
-            await exchangeroom.connect(accounts[0])._setBridge(accounts[0].address);
-        
-            const amount = parseEther(`1`);
-
-            await expect(await accounts[0].sendTransaction({to: exchangeroom.address, value: amount}))
-            .to.changeEtherBalance(exchangeroom.address, amount);
-
-            await expect(await accounts[0].sendTransaction({to: accounts[1].address, value: amount}))
-            .to.changeEtherBalance(accounts[1].address, amount);
-
-            let CFX_balance = await ethers.provider.getBalance(exchangeroom.address);
-
-        //    console.log("CFX balance " + CFX_balance);
-            await xcfx.connect(accounts[0]).addMinter(accounts[0].address);
-
-            await xcfx.connect(accounts[0]).addTokens(accounts[0].address, amount);
-
-            await xcfx.connect(accounts[0]).transfer(exchangeroom.address, amount);
-
-            let XCFX_balance = await xcfx.connect(accounts[0]).balanceOf(exchangeroom.address);
-
-       //     console.log("XCFX balance " + XCFX_balance);
-
-            await expect(
-                exchangeroom.connect(accounts[0])._setCoreExchange(accounts[1].address)
-            ).to.not.be.reverted;   
-            
-            await expect(
-                exchangeroom.handleCFXexchangeXCFX({from: accounts[0].address, value: 0})
-            ).to.be.reverted;   
-
-//             await exchangeroom.handleCFXexchangeXCFX({from: accounts[0].address, value: amount});
-
-
-
-        });
-
-
-        
         
 
         it(`XCFX_burn should be reverted`, async function () {
@@ -631,8 +584,83 @@ describe("Exchangeroom", async function () {
           await exchangeroom._setLockPeriod(0,0);
 
           await expect (exchangeroom.XCFX_burn(parseEther(`10`))).to.not.be.reverted;
-          
+
           await expect (exchangeroom.getback_CFX(parseEther(`10`))).to.not.be.reverted;
+        });
+
+        it("handleCFXexchangeXCFX should work", async function () {
+          const { exchangeroom , accounts, xcfx } = await deployExchangeroomFixture();
+
+            await exchangeroom.connect(accounts[0])._setBridge(accounts[0].address);
+        
+            const amount = parseEther(`1000`);
+
+            await expect(await accounts[0].sendTransaction({to: exchangeroom.address, value: amount}))
+            .to.changeEtherBalance(exchangeroom.address, amount);
+
+            await expect(await accounts[0].sendTransaction({to: accounts[1].address, value: amount}))
+            .to.changeEtherBalance(accounts[1].address, amount);
+
+            let CFX_balance = await ethers.provider.getBalance(exchangeroom.address);
+
+        //    console.log("CFX balance " + CFX_balance);
+            await xcfx.connect(accounts[0]).addMinter(accounts[0].address);
+
+            await xcfx.connect(accounts[0]).addTokens(accounts[0].address, amount);
+
+            await xcfx.connect(accounts[0]).transfer(exchangeroom.address, amount);
+
+            let XCFX_balance = await xcfx.connect(accounts[0]).balanceOf(exchangeroom.address);
+
+       //     console.log("XCFX balance " + XCFX_balance);
+
+          
+            await xcfx.addMinter(accounts[0].address);
+            await xcfx.addMinter(exchangeroom.address);
+
+
+            await xcfx.addTokens(exchangeroom.address,amount);
+            
+            await xcfx.addTokens(accounts[0].address,amount);
+            
+            await exchangeroom.initialize(xcfx.address, amount, { value: amount });       
+                
+              
+            await exchangeroom.connect(accounts[0])._setBridge(accounts[0].address);
+            await exchangeroom._setXCFXaddr(xcfx.address);
+            
+            await exchangeroom._setminexchangelimits(1);
+            await exchangeroom._setLockPeriod(0,0);
+            await exchangeroom.setlockedvotes(parseEther(`2000`));
+
+            await exchangeroom._setStorageaddr(accounts[0].address);
+            await exchangeroom._setstorageBridge(accounts[0].address);
+
+            await exchangeroom.setxCFXValue(parseEther(`1`));
+
+            await expect (exchangeroom.CFX_exchange_XCFX({value : parseEther(`20`)})).to.not.be.reverted;
+
+
+
+            await expect (exchangeroom.XCFX_burn(parseEther(`10`))).to.not.be.reverted;
+
+            await expect (exchangeroom.getback_CFX(parseEther(`10`))).to.not.be.reverted;
+    
+            await exchangeroom._setCoreExchange(accounts[0].address);   
+            
+            await expect(
+                exchangeroom.handleCFXexchangeXCFX({from: accounts[0].address, value: 0})
+            ).to.be.reverted;   
+
+            await exchangeroom.handleCFXexchangeXCFX({from: accounts[0].address, value: 1});
+
+
+            await exchangeroom._setCoreExchange(accounts[1].address);   
+      
+
+            await exchangeroom.handleCFXexchangeXCFX({from: accounts[0].address, value: 1});
+
+
         });
 
       });
