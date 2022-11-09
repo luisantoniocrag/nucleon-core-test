@@ -1,6 +1,7 @@
 {
   "name": "hardhat-project",
   "scripts": {
+    "coverage": "hardhat coverage",
     "test": "hardhat test"
   },
   "devDependencies": {
