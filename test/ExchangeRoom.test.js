@@ -232,36 +232,7 @@ describe("Exchangeroom", async function () {
     });
 
     
-    it(`initialize should not be reverted`, async function () {
-      const { exchangeroom , accounts, xcfx } = await deployExchangeroomFixture();
-          
-        const amount = parseEther(`1000`);
-
-    //   await accounts[0].sendTransaction({to: exchangeroom.address, value: amount})
-
-
-        let balance = await ethers.provider.getBalance(exchangeroom.address);
-
-    //    console.log("balance " + balance);
-
-        let balance2 = await ethers.provider.getBalance(accounts[0].address);
-
-    //    console.log("balance2 " + balance2);
-
-        let balance3 = await xcfx.balanceOf(accounts[0].address);
-
-    //    console.log("balance3 " + balance3);
-        
-    //    console.log("XCFX Address " + xcfx.address);
-      
-    // Esto esta pendiente!!
-
-
-     // await exchangeroom.connect(accounts[0]).initialize(xcfx.address, amount, { value: amount });
-
-         
-         
-    });
+    
     
 
     
@@ -307,38 +278,7 @@ describe("Exchangeroom", async function () {
 
 
         
-        it("CFX_exchange_XCFX should work", async function () {
-          const { exchangeroom , accounts, xcfx } = await deployExchangeroomFixture();
-          
-            const amount = parseEther(`10`);
-            
-            await exchangeroom.connect(accounts[0])._setBridge(accounts[1].address);
-
-            await expect(await accounts[0].sendTransaction({to: accounts[1].address, value: amount}))
-            .to.changeEtherBalance(accounts[1].address, amount);
-
-            await expect(
-                exchangeroom.connect(accounts[0])._setminexchangelimits(1)
-            ).to.not.be.reverted;  
-
-            await expect(
-                exchangeroom.connect(accounts[0])._setminexchangelimits(1)
-            ).to.emit(exchangeroom,"Setminexchangelimits")
-            
-            await expect(
-                exchangeroom.connect(accounts[0])._setCoreExchange(accounts[1].address)
-            ).to.not.be.reverted;   
-
-         //   await exchangeroom.connect(accounts[1]).CFX_exchange_XCFX({value : amount});
-
-           await expect (exchangeroom.CFX_exchange_XCFX({value : parseEther(`1000`)})).to.be.reverted;
-
-           await expect (exchangeroom.CFX_exchange_XCFX({value : parseEther(`0`)})).to.be.reverted;
-            
-
-          // await exchangeroom.CFX_exchange_XCFX({value : parseEther(`1`)});
-
-        });
+        
 
         it(`XCFX_burn should be reverted`, async function () {
           const { exchangeroom , accounts, xcfx } = await deployExchangeroomFixture();
@@ -601,8 +541,71 @@ describe("Exchangeroom", async function () {
             ).to.not.be.reverted;  
         });
 
+        it("CFX_exchange_XCFX should work", async function () {
+          const { exchangeroom , accounts, xcfx } = await deployExchangeroomFixture();
+          
+          const amount = parseEther(`1000`);
     
+        
+          
+          await xcfx.addMinter(accounts[0].address);
+          await xcfx.addMinter(exchangeroom.address);
+
+          await exchangeroom.initialize(xcfx.address, amount, { value: amount });       
+             
+            
+          await exchangeroom.connect(accounts[0])._setBridge(accounts[1].address);
+          await exchangeroom._setXCFXaddr(xcfx.address);
+
+
+          await expect (exchangeroom.CFX_exchange_XCFX({value : parseEther(`10`)})).to.not.be.reverted;
+          await expect (exchangeroom.CFX_exchange_XCFX({value : parseEther(`1000`)})).to.not.be.reverted;
+          await expect (exchangeroom.CFX_exchange_XCFX({value : parseEther(`0`)})).to.be.reverted;
+            
+
+
+        });
     
+
+        it(`initialize should not be reverted`, async function () {
+          const { exchangeroom , accounts, xcfx } = await deployExchangeroomFixture();
+              
+          const amount = parseEther(`1000`);
+    
+        
+          
+          await xcfx.addMinter(accounts[0].address);
+          await xcfx.addMinter(exchangeroom.address);
+
+          await exchangeroom.initialize(xcfx.address, amount, { value: amount });       
+             
+        });
+
+        it(`XCFX_burn should work`, async function () {
+          const { exchangeroom , accounts, xcfx } = await deployExchangeroomFixture();
+          
+          const amount = parseEther(`1000`);
+    
+        
+          
+          await xcfx.addMinter(accounts[0].address);
+          await xcfx.addMinter(exchangeroom.address);
+
+          await exchangeroom.initialize(xcfx.address, amount, { value: amount });       
+             
+            
+          await exchangeroom.connect(accounts[0])._setBridge(accounts[1].address);
+          await exchangeroom._setXCFXaddr(xcfx.address);
+          
+          await exchangeroom._setminexchangelimits(1);
+
+          await expect (exchangeroom.CFX_exchange_XCFX({value : parseEther(`20`)})).to.not.be.reverted;
+
+            
+          await expect (exchangeroom.XCFX_burn(parseEther(`10`))).to.not.be.reverted;
+
+             
+        });
 
       });
 

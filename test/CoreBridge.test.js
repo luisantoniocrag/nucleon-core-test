@@ -481,17 +481,54 @@ describe("CoreBridge", async function () {
       
       it("syncALLwork should work", async () => {
           
-        const { bridge, accounts} = await deployCoreBridgeFixture();
+        const {
+          exchangeroom,
+          xcfx,
+          accounts,
+          pool,
+          bridge,
+          ONE_VOTE_CFX,
+          IDENTIFIER,
+          blsPubKey,
+          vrfPubKey,
+          blsPubKeyProof,
+        } = await deployCoreBridgeFixture();
+  
+        
+        //initializate
+        await pool.initialize();
+        await bridge.initialize();
+        await pool._setbridges(bridge.address, bridge.address, bridge.address);
+  
+        //register pool
+        await pool.register(IDENTIFIER, 1, blsPubKey, vrfPubKey, blsPubKeyProof, {
+          value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
+        });
+        //check that the pool is already registered
+        expect(await pool._poolRegisted()).to.be.equal(true);
+  
+        //check votes is equal to 1 = only the first deposit until now
+        let poolSummary = await pool.poolSummary();
+        expect(String(poolSummary.totalvotes)).to.be.equal("1");
+  
 
         await bridge._settrustedtrigers(accounts[0].address, true) ;  
-        
+        await bridge._settrustedtrigers(bridge.address, true) ;  
+        await bridge._settrustedtrigers(pool.address, true) ;  
+        await bridge._addPoolAddress(pool.address) ;  
+        await bridge._seteSpaceExroomAddress(exchangeroom.address) ;  
+        await bridge._seteSpacexCFXAddress(xcfx.address) ;  
+        await bridge._seteSpacebridgeAddress(bridge.address) ;  
+
         let triggerState = await bridge.gettrigerstate(accounts[0].address);
 
         console.log("gettrigerstate returned " + triggerState);
 
-        await expect( bridge.syncALLwork()).to.be.reverted;  
+       // await bridge.syncALLwork() ;  
 
-      //  let infos = await bridge.connect(accounts[0]).syncALLwork();
+        await expect( bridge.syncALLwork() ).to.be.reverted;  
+
+      //  let infos = await bridge.syncALLwork();
 
       //  console.log('infos is ' + infos);
 
@@ -505,14 +542,12 @@ describe("CoreBridge", async function () {
         const { bridge, accounts} = await deployCoreBridgeFixture();
 
         await expect( bridge.connect(accounts[3]).syncALLwork()).to.be.reverted;  
+        await expect( bridge.syncALLwork() ).to.be.reverted;  
+
 
       });
     
     });
-
-
-
-
 
  
   });
