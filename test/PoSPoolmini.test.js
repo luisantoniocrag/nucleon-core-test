@@ -46,14 +46,38 @@ describe("PoSPoolmini", async function () {
     };
   }
 
+  async function initializePoSPoolminiFixture() {
+    const deploy = await deployPoSPoolminiFixture();
+    const { pool } = deploy;
+
+    //initialize pool
+    const initialize = await pool.initialize();
+    await initialize.wait();
+
+    return {...deploy};
+  }
+
+  async function registeredPoolPoSPoolminiFixture() {
+    const poolInitialized = await initializePoSPoolminiFixture();
+    const { pool, IDENTIFIER, blsPubKey, vrfPubKey, blsPubKeyProof,  ONE_VOTE_CFX, bridge} = poolInitialized;
+    //register pool with 1000 CFX
+    await pool.register(IDENTIFIER, 1, blsPubKey, vrfPubKey, blsPubKeyProof, {
+      value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
+    });
+
+    //initialize and set bridge
+    await bridge.initialize(pool.address);
+    await pool._setbridges(bridge.address, bridge.address, bridge.address);
+
+    return {...poolInitialized};
+  }
+
   describe("Initialize()", async () => {
     it("should initializate contract", async () => {
       const expextedPoolName = "Nucleon Conflux Pos Pool 01";
-
       const { pool } = await deployPoSPoolminiFixture();
       const initialize = await pool.initialize();
       await initialize.wait();
-
       expect(await pool.poolName()).to.be.equal(expextedPoolName);
     });
 
@@ -114,26 +138,8 @@ describe("PoSPoolmini", async function () {
 
   describe("increaseState()", async function () {
     it("should increase staking amount", async () => {
-      const {
-        accounts,
-        pool,
-        bridge,
-        ONE_VOTE_CFX,
-        IDENTIFIER,
-        blsPubKey,
-        vrfPubKey,
-        blsPubKeyProof,
-      } = await deployPoSPoolminiFixture();
+      const {pool, ONE_VOTE_CFX,bridge, accounts} = await registeredPoolPoSPoolminiFixture();
 
-      //initializate
-      await pool.initialize();
-      await bridge.initialize(pool.address);
-      await pool._setbridges(bridge.address, bridge.address, bridge.address);
-
-      //register pool
-      await pool.register(IDENTIFIER, 1, blsPubKey, vrfPubKey, blsPubKeyProof, {
-        value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
-      });
       //check that the pool is already registered
       expect(await pool._poolRegisted()).to.be.equal(true);
 
@@ -159,26 +165,8 @@ describe("PoSPoolmini", async function () {
     });
 
     it("should not increase amount", async () => {
-      const {
-        accounts,
-        pool,
-        bridge,
-        ONE_VOTE_CFX,
-        IDENTIFIER,
-        blsPubKey,
-        vrfPubKey,
-        blsPubKeyProof,
-      } = await deployPoSPoolminiFixture();
+      const {pool, ONE_VOTE_CFX,bridge, accounts} = await registeredPoolPoSPoolminiFixture();
 
-      //initializate
-      await pool.initialize();
-      await bridge.initialize(pool.address);
-      await pool._setbridges(bridge.address, bridge.address, bridge.address);
-
-      //register pool
-      await pool.register(IDENTIFIER, 1, blsPubKey, vrfPubKey, blsPubKeyProof, {
-        value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
-      });
       //check that the pool is already registered
       expect(await pool._poolRegisted()).to.be.equal(true);
 
