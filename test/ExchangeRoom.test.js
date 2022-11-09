@@ -607,6 +607,34 @@ describe("Exchangeroom", async function () {
              
         });
 
+
+        it(`getback_CFX should work`, async function () {
+          const { exchangeroom , accounts, xcfx } = await deployExchangeroomFixture();
+          
+          const amount = parseEther(`1000`);
+    
+        
+          
+          await xcfx.addMinter(accounts[0].address);
+          await xcfx.addMinter(exchangeroom.address);
+
+          await exchangeroom.initialize(xcfx.address, amount, { value: amount });       
+             
+            
+          await exchangeroom.connect(accounts[0])._setBridge(accounts[1].address);
+          await exchangeroom._setXCFXaddr(xcfx.address);
+          
+          await exchangeroom._setminexchangelimits(1);
+
+          await expect (exchangeroom.CFX_exchange_XCFX({value : parseEther(`20`)})).to.not.be.reverted;
+
+          await exchangeroom._setLockPeriod(0,0);
+
+          await expect (exchangeroom.XCFX_burn(parseEther(`10`))).to.not.be.reverted;
+          
+          await expect (exchangeroom.getback_CFX(parseEther(`10`))).to.not.be.reverted;
+        });
+
       });
 
 
