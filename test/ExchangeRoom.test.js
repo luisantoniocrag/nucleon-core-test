@@ -550,11 +550,13 @@ describe("Exchangeroom", async function () {
           await exchangeroom.connect(accounts[0])._setBridge(accounts[1].address);
           await exchangeroom._setXCFXaddr(xcfx.address);
           
-          await exchangeroom._setminexchangelimits(1);
+          await exchangeroom._setminexchangelimits(parseEther(`1`));
 
           await expect (exchangeroom.CFX_exchange_XCFX({value : parseEther(`20`)})).to.not.be.reverted;
 
-            
+                        
+          await expect (exchangeroom.XCFX_burn(parseEther(`0.5`))).to.be.reverted;
+          await expect (exchangeroom.XCFX_burn(parseEther(`100000`))).to.be.reverted;
           await expect (exchangeroom.XCFX_burn(parseEther(`10`))).to.not.be.reverted;
 
              
@@ -570,6 +572,8 @@ describe("Exchangeroom", async function () {
           
           await xcfx.addMinter(accounts[0].address);
           await xcfx.addMinter(exchangeroom.address);
+          await expect(exchangeroom.initialize(xcfx.address, amount, { value: 0 })).to.be.reverted;       
+          await expect(exchangeroom.initialize(zeroAddress, amount, { value: amount })).to.be.reverted;       
 
           await exchangeroom.initialize(xcfx.address, amount, { value: amount });       
              
@@ -584,8 +588,12 @@ describe("Exchangeroom", async function () {
           await exchangeroom._setLockPeriod(0,0);
 
           await expect (exchangeroom.XCFX_burn(parseEther(`10`))).to.not.be.reverted;
-
+          await expect (exchangeroom.getback_CFX(parseEther(`1000000`))).to.be.reverted;
+          await expect (exchangeroom.getback_CFX(parseEther(`21`))).to.be.reverted;
           await expect (exchangeroom.getback_CFX(parseEther(`10`))).to.not.be.reverted;
+
+          await xcfx.addTokens(accounts[0].address,parseEther(`10000000`));
+          await expect (exchangeroom.getback_CFX(parseEther(`1000000`))).to.be.reverted;
         });
 
         it("handleCFXexchangeXCFX should work", async function () {
@@ -660,6 +668,22 @@ describe("Exchangeroom", async function () {
 
             await exchangeroom.handleCFXexchangeXCFX({from: accounts[0].address, value: 1});
 
+
+        });
+
+
+        it("fallback should work", async function () {
+          const { exchangeroom , accounts, xcfx } = await deployExchangeroomFixture();
+
+          expect  (await exchangeroom.fallback({ value: 1})).to.not.be.reverted;
+          
+          const tx = accounts[0].sendTransaction({
+            to: exchangeroom.address,
+            data: "0x1234",
+          });
+          
+          await expect(tx).to.not.be.reverted;
+          await expect(exchangeroom.fallback()).to.not.be.reverted;
 
         });
 
