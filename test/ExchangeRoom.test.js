@@ -336,6 +336,9 @@ describe("Exchangeroom", async function () {
             await expect(
                 exchangeroom.connect(accounts[2]).handlexCFXadd()
             ).to.be.reverted;  
+
+
+
         });
 
         it(`handleUnstake should be reverted`, async function () {
@@ -393,7 +396,12 @@ describe("Exchangeroom", async function () {
           await expect(
               exchangeroom.connect(accounts[0])._setLockPeriod(0,0)
           ).to.not.be.reverted;    
-        });
+
+          await expect(
+            exchangeroom.connect(accounts[0])._setLockPeriod(0,0)
+          ).to.emit(exchangeroom,"SetLockPeriod");    
+        
+      });
 
         it(`_setminexchangelimits should not be reverted`, async function () {
           const { exchangeroom , accounts, xcfx } = await deployExchangeroomFixture();
@@ -483,6 +491,11 @@ describe("Exchangeroom", async function () {
             await expect(
                 exchangeroom.connect(accounts[1]).handlexCFXadd()
             ).to.not.be.reverted;  
+            
+            await expect(
+              exchangeroom.connect(accounts[1]).handlexCFXadd()
+            ).to.emit(exchangeroom,"HandlexCFXadd");
+
         });
 
         it(`handleUnstake should not be reverted`, async function () {
@@ -492,6 +505,12 @@ describe("Exchangeroom", async function () {
             await expect(
                 exchangeroom.connect(accounts[1]).handleUnstake()
             ).to.not.be.reverted;  
+            
+            await expect(
+              exchangeroom.connect(accounts[1]).handleUnstake()
+            ).to.emit(exchangeroom,"HandleUnstake");
+
+
         });
 
         it("CFX_exchange_XCFX should work", async function () {

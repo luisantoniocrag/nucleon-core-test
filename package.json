@@ -1,5 +1,9 @@
 {
   "name": "hardhat-project",
+  "scripts": {
+    "coverage": "hardhat coverage",
+    "test": "hardhat test"
+  },
   "devDependencies": {
     "@ethersproject/providers": "^5.7.2",
     "@nomicfoundation/hardhat-chai-matchers": "^1.0.4",
