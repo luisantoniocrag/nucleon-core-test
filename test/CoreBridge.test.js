@@ -524,7 +524,7 @@ describe("CoreBridge", async function () {
 
         console.log("gettrigerstate returned " + triggerState);
 
-       // await bridge.syncALLwork() ;  
+     //   await bridge.syncALLwork() ;  
 
         await expect( bridge.syncALLwork() ).to.be.reverted;  
 
@@ -548,7 +548,7 @@ describe("CoreBridge", async function () {
       });
     
     });
-    
+
  
   });
 
