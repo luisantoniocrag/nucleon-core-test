@@ -26,6 +26,14 @@ contract MockCoreBridge_multipool is Ownable, Initializable {
     POOL.decreaseStake(votePower);
   }
 
+  function withdrawVotes() public {
+    POOL.withdrawStake();
+  }
+
+  function claimInterests() public {
+    POOL.claimAllInterest();
+  }
+
   fallback() external payable {}
   receive() external payable {}
   

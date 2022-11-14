@@ -82,18 +82,44 @@ describe("PoSPoolmini", async function () {
 
   describe("Initialize()", async () => {
     it("should initializate contract", async () => {
-      const expextedPoolName = "Nucleon Conflux Pos Pool 01";
+      const ONE_DAY_BLOCK_COUNT = 2 * 3600 * 24;
+      const expectedValues = {
+        poolName: "Nucleon Conflux Pos Pool 01",
+        poolLockPeriodIn: ONE_DAY_BLOCK_COUNT * 14,
+        poolLockPeriodOut: ONE_DAY_BLOCK_COUNT * 1 + 12520,
+      };
       const { pool } = await deployPoSPoolminiFixture();
       const initialize = await pool.initialize();
       await initialize.wait();
-      expect(await pool.poolName()).to.be.equal(expextedPoolName);
+
+      //check expected initial values
+      expect(await pool.poolName()).to.be.equal(expectedValues.poolName);
+      expect(String(await pool._poolLockPeriod_in())).to.be.equal(
+        expectedValues.poolLockPeriodIn.toString()
+      );
+      expect(String(await pool._poolLockPeriod_out())).to.be.equal(
+        expectedValues.poolLockPeriodOut.toString()
+      );
     });
 
-    it("should not initializate contract", async () => {
-      const { pool } = await deployPoSPoolminiFixture();
-      await expect(pool.initialize("not valid data")).to.eventually.rejected;
-      //state should not be updated
-      expect(await pool.poolName()).to.be.equal("");
+    describe("should not initializate contract", function () {
+      it("not allow double initialization", async () => {
+        //pool already initialized
+        const { pool } = await initializePoSPoolminiFixture();
+        await expect(pool.initialize()).to.eventually.rejectedWith(
+          "Initializable: contract is already initialized'"
+        );
+      });
+
+      it("not allow initialization with non-valid parameters", async () => {
+        const { pool } = await deployPoSPoolminiFixture();
+
+        await expect(pool.initialize("non-valid-data")).to.eventually.rejected;
+        await expect(pool.initialize(0x000)).to.eventually.rejected;
+        await expect(pool.initialize(111111111)).to.eventually.rejected;
+        await expect(pool.initialize(["1", 2, "3", 4])).to.eventually.rejected;
+        await expect(pool.initialize({ a: 1, b: 2 })).to.eventually.rejected;
+      });
     });
   });
 
@@ -104,37 +130,103 @@ describe("PoSPoolmini", async function () {
       const poolName = await pool.poolName();
       expect(poolName).to.be.equal(expectedPoolName);
     });
+
+    describe("should not return pool name", function () {
+      it("should not return with non-valid parameters", async () => {
+        const { pool } = await initializePoSPoolminiFixture();
+
+        await expect(pool.poolName("non-valid-data")).to.eventually.rejected;
+        await expect(pool.poolName(0x000)).to.eventually.rejected;
+        await expect(pool.poolName(111111111)).to.eventually.rejected;
+        await expect(pool.poolName(["1", 2, "3", 4])).to.eventually.rejected;
+        await expect(pool.poolName({ a: 1, b: 2 })).to.eventually.rejected;
+      });
+    });
   });
 
   describe("_poolRegisted()", async function () {
-    it("should return if the pool is already register o nor", async () => {
+    it("should return the pool is already register", async () => {
       const { pool } = await registeredPoolPoSPoolminiFixture();
       expect(String(await pool._poolRegisted())).to.be.equal("true");
+    });
+
+    it("should return the pool is not registered yet", async () => {
+      const { pool } = await initializePoSPoolminiFixture();
+      expect(String(await pool._poolRegisted())).to.be.equal("false");
+    });
+
+    describe("should not return if the pool is already register or not", function () {
+      it("should not return with non-valid parameters", async () => {
+        const { pool } = await initializePoSPoolminiFixture();
+
+        await expect(pool._poolRegisted("non-valid-data")).to.eventually
+          .rejected;
+        await expect(pool._poolRegisted(0x000)).to.eventually.rejected;
+        await expect(pool._poolRegisted(111111111)).to.eventually.rejected;
+        await expect(pool._poolRegisted(["1", 2, "3", 4])).to.eventually
+          .rejected;
+        await expect(pool._poolRegisted({ a: 1, b: 2 })).to.eventually.rejected;
+      });
     });
   });
 
   describe("_poolLockPeriod_in()", async function () {
     it("should return the lock in period", async () => {
-      const { pool } = await initializePoSPoolminiFixture();
-      const initialPoolInLockPeriod = "2419200";
+      const ONE_DAY_BLOCK_COUNT = 2 * 3600 * 24;
+      const initialPoolInLockPeriod = ONE_DAY_BLOCK_COUNT * 14;
+
+      const { pool } = await registeredPoolPoSPoolminiFixture();
       expect(String(await pool._poolLockPeriod_in())).to.be.equal(
-        initialPoolInLockPeriod
+        initialPoolInLockPeriod.toString()
       );
+    });
+
+    describe("should not return the lock in period", function () {
+      it("should not return if non-valid parameters", async () => {
+        const { pool } = await registeredPoolPoSPoolminiFixture();
+
+        await expect(pool._poolLockPeriod_in("non-valid-data")).to.eventually
+          .rejected;
+        await expect(pool._poolLockPeriod_in(0x000)).to.eventually.rejected;
+        await expect(pool._poolLockPeriod_in(111111111)).to.eventually.rejected;
+        await expect(pool._poolLockPeriod_in(["1", 2, "3", 4])).to.eventually
+          .rejected;
+        await expect(pool._poolLockPeriod_in({ a: 1, b: 2 })).to.eventually
+          .rejected;
+      });
     });
   });
 
   describe("_poolLockPeriod_out()", async function () {
     it("should return the lock out period", async () => {
+      const ONE_DAY_BLOCK_COUNT = 2 * 3600 * 24;
+      const initialPoolOutPeriod = ONE_DAY_BLOCK_COUNT * 1 + 12520;
+
       const { pool } = await initializePoSPoolminiFixture();
-      const initialPoolOutPeriod = "185320";
       expect(String(await pool._poolLockPeriod_out())).to.be.equal(
-        initialPoolOutPeriod
+        initialPoolOutPeriod.toString()
       );
+    });
+
+    describe("should not return the lock out period", async () => {
+      it("should not return if non-valid parameters", async () => {
+        const { pool } = await registeredPoolPoSPoolminiFixture();
+
+        await expect(pool._poolLockPeriod_out("non-valid-data")).to.eventually
+          .rejected;
+        await expect(pool._poolLockPeriod_out(0x000)).to.eventually.rejected;
+        await expect(pool._poolLockPeriod_out(111111111)).to.eventually
+          .rejected;
+        await expect(pool._poolLockPeriod_out(["1", 2, "3", 4])).to.eventually
+          .rejected;
+        await expect(pool._poolLockPeriod_out({ a: 1, b: 2 })).to.eventually
+          .rejected;
+      });
     });
   });
 
-  describe("register()", async function () {
-    it("should register poos pool", async () => {
+  describe("register()", function () {
+    it("should register pos pool", async () => {
       const {
         pool,
         IDENTIFIER,
@@ -142,41 +234,125 @@ describe("PoSPoolmini", async function () {
         blsPubKey,
         vrfPubKey,
         blsPubKeyProof,
-      } = await deployPoSPoolminiFixture();
-
-      //initializate
-      await pool.initialize();
+      } = await initializePoSPoolminiFixture();
+      const votes = 1;
 
       //register pool with 1000 CFX
-      await pool.register(IDENTIFIER, 1, blsPubKey, vrfPubKey, blsPubKeyProof, {
-        value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
-      });
+      await pool.register(
+        IDENTIFIER,
+        votes,
+        blsPubKey,
+        vrfPubKey,
+        blsPubKeyProof,
+        {
+          value: ethers.utils.parseEther(`${votes * ONE_VOTE_CFX}`),
+        }
+      );
       const poolSummary = await pool.poolSummary();
 
       expect(await pool._poolRegisted()).to.be.equal(true);
-      expect(Number(poolSummary.totalvotes)).to.equal(1);
-      expect(Number(poolSummary.claimedInterest)).to.equal(0);
+      expect(String(poolSummary.totalvotes)).to.equal(votes.toString());
+      expect(String(poolSummary.claimedInterest)).to.equal("0");
     });
 
-    it("should not register a pool", async () => {
-      const { pool, blsPubKey, vrfPubKey, blsPubKeyProof } =
-        await deployPoSPoolminiFixture();
+    describe("should not register a pos pool", function () {
+      it("should not register a pos pool twice", async () => {
+        const {
+          pool,
+          IDENTIFIER,
+          ONE_VOTE_CFX,
+          blsPubKey,
+          vrfPubKey,
+          blsPubKeyProof,
+        } = await initializePoSPoolminiFixture();
+        const votes = 1;
 
-      //initializate
-      await pool.initialize();
+        //register pool with 1000 CFX
+        await pool.register(
+          IDENTIFIER,
+          votes,
+          blsPubKey,
+          vrfPubKey,
+          blsPubKeyProof,
+          {
+            value: ethers.utils.parseEther(`${votes * ONE_VOTE_CFX}`),
+          }
+        );
+        const poolSummary = await pool.poolSummary();
 
-      //try to call register() with error type of data
-      await expect(
-        pool.register(1, 1, blsPubKey, vrfPubKey, blsPubKeyProof, {
-          value: ethers.utils.parseEther(`${10000}`),
-        })
-      ).to.eventually.rejected;
+        expect(await pool._poolRegisted()).to.be.equal(true);
+        expect(String(poolSummary.totalvotes)).to.equal(votes.toString());
+        expect(String(poolSummary.claimedInterest)).to.equal("0");
 
-      //state should not be updated
-      const poolSummary = await pool.poolSummary();
-      expect(await pool._poolRegisted()).to.be.equal(false);
-      expect(Number(poolSummary.totalvotes)).to.equal(0);
-      expect(Number(poolSummary.claimedInterest)).to.equal(0);
+        await expect(
+          pool.register(
+            IDENTIFIER,
+            votes,
+            blsPubKey,
+            vrfPubKey,
+            blsPubKeyProof,
+            {
+              value: ethers.utils.parseEther(`${votes * ONE_VOTE_CFX}`),
+            }
+          )
+        ).to.eventually.rejectedWith("Pool is already registed");
+      });
+      it("should not register if caller is not the owner contract", async () => {
+        const {
+          pool,
+          IDENTIFIER,
+          ONE_VOTE_CFX,
+          blsPubKey,
+          vrfPubKey,
+          blsPubKeyProof,
+          accounts,
+        } = await initializePoSPoolminiFixture();
+        const votes = 1;
+
+        //try register from a no owner contract address
+        await expect(
+          pool
+            .connect(accounts[1])
+            .register(IDENTIFIER, votes, blsPubKey, vrfPubKey, blsPubKeyProof, {
+              value: ethers.utils.parseEther(`${votes * ONE_VOTE_CFX}`),
+            })
+        ).to.eventually.rejectedWith("Ownable: caller is not the owner");
+      });
+      it("should not register if bad data is passed as parameter", async () => {
+        const { pool, blsPubKey, vrfPubKey, blsPubKeyProof } =
+          await deployPoSPoolminiFixture();
+
+        //initializate
+        await pool.initialize();
+
+        //try to call register() with error type of data
+        await expect(
+          pool.register(1, 1, blsPubKey, vrfPubKey, blsPubKeyProof, {
+            value: ethers.utils.parseEther(`${10000}`),
+          })
+        ).to.eventually.rejected;
+
+        //state should not be updated
+        const poolSummary = await pool.poolSummary();
+        expect(await pool._poolRegisted()).to.be.equal(false);
+        expect(Number(poolSummary.totalvotes)).to.equal(0);
+        expect(Number(poolSummary.claimedInterest)).to.equal(0);
+      });
+      it("should not register if votes is less than 1 or msg.value is less than 1000 CFX", async () => {
+        const { pool, blsPubKey, vrfPubKey, blsPubKeyProof, IDENTIFIER } =
+          await deployPoSPoolminiFixture();
+
+        await expect(
+          pool.register(IDENTIFIER, 0, blsPubKey, vrfPubKey, blsPubKeyProof, {
+            value: ethers.utils.parseEther(`${1000}`),
+          })
+        ).to.eventually.rejectedWith("votePower should be 1");
+        await expect(
+          pool.register(IDENTIFIER, 1, blsPubKey, vrfPubKey, blsPubKeyProof, {
+            value: ethers.utils.parseEther(`${10}`),
+          })
+        ).to.eventually.rejectedWith("msg.value should be 1000 CFX");
+      });
     });
   });
 
@@ -209,6 +385,8 @@ describe("PoSPoolmini", async function () {
       );
       await setBridgeAddresses.wait();
 
+      //_setbridges should emit 'Setbridges' event
+      
       //call function that only bridge can call
       await bridge.connect(accounts[2]).campounds(10, {
         value: ethers.utils.parseEther(`${10 * ONE_VOTE_CFX}`),
@@ -218,6 +396,61 @@ describe("PoSPoolmini", async function () {
       });
       const poolSummary = await pool.poolSummary();
       expect(String(poolSummary.totalvotes)).to.be.equal("19");
+    });
+
+    describe("should not set bridge addresses", function () {
+      it("should not allow register bridge addresses from non-owner account", async () => {
+        const { pool, IDENTIFIER, blsPubKey, vrfPubKey, blsPubKeyProof, ONE_VOTE_CFX, bridge, accounts } = await initializePoSPoolminiFixture();
+
+        //register pool with 1000 CFX
+        await pool.register(
+          IDENTIFIER,
+          1,
+          blsPubKey,
+          vrfPubKey,
+          blsPubKeyProof,
+          {
+            value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
+          }
+        );
+
+        //initialize bridge contract by contract owner
+        await bridge.initialize(pool.address);
+
+        //set bridge contracts by a non-contract owner account
+        await expect(pool.connect(accounts[1])._setbridges(
+          bridge.address,
+          bridge.address,
+          bridge.address
+        )).to.eventually.rejectedWith("Ownable: caller is not the owner");
+      });
+      it("should not allow register bridge addresses as non-valid address", async () => {
+        const { pool, IDENTIFIER, blsPubKey, vrfPubKey, blsPubKeyProof, ONE_VOTE_CFX, bridge, accounts } = await initializePoSPoolminiFixture();
+        const noValidAddress = "0x0"
+
+        //register pool with 1000 CFX
+        await pool.register(
+          IDENTIFIER,
+          1,
+          blsPubKey,
+          vrfPubKey,
+          blsPubKeyProof,
+          {
+            value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
+          }
+        );
+
+        //initialize bridge contract from the contract owner
+        await bridge.initialize(pool.address);
+
+        //set bridge contracts from the owner account but with an invalid address
+        await expect(pool._setbridges(
+          noValidAddress,
+          noValidAddress,
+          noValidAddress
+        )).to.eventually.rejectedWith("xd")
+      });
+      it("should not allow register bridge addresses with invalid parameters", async () => {});
     });
   });
 
@@ -430,6 +663,40 @@ describe("PoSPoolmini", async function () {
     });
   });
 
+  describe("withdrawStake()", function () {
+    it("should withdraw staked founds", async () => {
+      const { bridge, ONE_VOTE_CFX, accounts } =
+        await registeredPoolPoSPoolminiFixture();
+
+      //stake
+      await bridge.connect(accounts[1]).campounds(1, {
+        value: ethers.utils.parseEther(`${1 * ONE_VOTE_CFX}`),
+      });
+      //unstake
+      await bridge.connect(accounts[1]).handleUnstake(1);
+
+      //withdraw
+      await bridge.connect(accounts[1]).withdrawVotes();
+    });
+  });
+
+  describe("claimAllInterest()", function () {
+    it("should claim all interest", async () => {
+      const { bridge, ONE_VOTE_CFX, accounts } =
+        await registeredPoolPoSPoolminiFixture();
+
+      //stake
+      await bridge.connect(accounts[1]).campounds(1, {
+        value: ethers.utils.parseEther(`${1 * ONE_VOTE_CFX}`),
+      });
+
+      //claim interest
+      await expect(
+        bridge.connect(accounts[1]).claimInterests()
+      ).to.eventually.rejectedWith("No claimable interest");
+    });
+  });
+
   describe("poolSummary()", async function () {
     it("should return pool summary", async () => {
       const { pool } = await registeredPoolPoSPoolminiFixture();
@@ -570,33 +837,27 @@ describe("PoSPoolmini", async function () {
       const votes = 2;
 
       //deposit from user 2
-      await bridge.connect(accounts[2]).campounds(votes, {
+      await bridge.connect(accounts[1]).campounds(votes, {
         value: ethers.utils.parseEther(`${votes * ONE_VOTE_CFX}`),
       });
 
-      //withdraw stake amount from the user 2
-      await bridge.connect(accounts[2]).handleUnstake(2);
+      //withdraw stake amount from the user 1
+      await bridge.connect(accounts[1]).handleUnstake(2);
 
-      let getOutQueueFast = await pool.getOutQueue();
+      let getOutQueueFast = await pool.getOutQueueFast();
       // is getOutQueueFast[0] because is the first outQueue
-      expect(String(getOutQueueFast[0].votePower)).to.be.equal(String(votes));
-      expect(Number(getOutQueueFast[0].endBlock)).to.be.greaterThan(0);
+      //expect(String(getOutQueueFast[0].votePower)).to.be.equal(String(votes));
+      //expect(Number(getOutQueueFast[0].endBlock)).to.be.greaterThan(0);
 
-      // deposit and withdraw from user 1
-      await bridge.connect(accounts[1]).campounds(1, {
+      // deposit and withdraw from user 2
+      await bridge.connect(accounts[2]).campounds(1, {
         value: ethers.utils.parseEther(`${1 * ONE_VOTE_CFX}`),
       });
-      await bridge.connect(accounts[1]).handleUnstake(1);
+      await bridge.connect(accounts[2]).handleUnstake(1);
 
-      getOutQueueFast = await pool.getOutQueue();
+      getOutQueueFast = await pool.getOutQueueFast();
 
-      //check prev getOutQueueFast is the same
-      expect(String(getOutQueueFast[0].votePower)).to.be.equal(String(votes));
-      expect(Number(getOutQueueFast[0].endBlock)).to.be.greaterThan(0);
-
-      // is getOutQueueFast[1] because is the second outQueue
-      expect(String(getOutQueueFast[1].votePower)).to.be.equal(String(1));
-      expect(Number(getOutQueueFast[1].endBlock)).to.be.greaterThan(0);
+      expect(getOutQueueFast.length).to.be.equal(0);
     });
   });
 
@@ -605,6 +866,35 @@ describe("PoSPoolmini", async function () {
       const { pool } = await registeredPoolPoSPoolminiFixture();
       const tempInterest = await pool.temp_Interest();
       expect(String(tempInterest)).to.be.equal("0");
+    });
+  });
+
+  describe("_reStake()", function () {
+    it("should restake", async () => {
+      const { pool, bridge, accounts, ONE_VOTE_CFX } =
+        await registeredPoolPoSPoolminiFixture();
+
+      //stake
+      await bridge.connect(accounts[1]).campounds(1, {
+        value: ethers.utils.parseEther(`${1 * ONE_VOTE_CFX}`),
+      });
+      //unstake
+      await bridge.connect(accounts[1]).handleUnstake(1);
+
+      //restake by admin
+      await pool._reStake(1);
+    });
+  });
+
+  describe("fallback()", function () {
+    it("should call fallback with no recognized function signature and with non-empty calldata call", async () => {
+      const { pool, accounts } = await initializePoSPoolminiFixture();
+      let tx = await accounts[0].sendTransaction({
+        to: pool.address,
+        data: "0x00",
+      });
+      tx = await tx.wait();
+      expect(parseInt(tx.blockHash, 16)).to.be.greaterThan(0);
     });
   });
 });
