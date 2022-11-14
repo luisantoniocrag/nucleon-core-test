@@ -1,15 +1,13 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity >=0.8.0;
 
-import "./CrossSpaceCall.sol";
-
 contract MockMappedAddress {
 
     address coreAddress;
 
-    constructor(address _address) {
+    constructor(address _coreAddress) {
         // set origin
-        coreAddress = _address;
+        coreAddress = _coreAddress;
     }
 
     function transferEVM(bytes20 to) external payable returns (bytes memory output) {
@@ -36,7 +34,6 @@ contract MockMappedAddress {
         // so we do not add permission check here
         bool success;
         require(address(this).balance >= value, "No enough balance in mapped address");
-        // address ori = MockCrossSpaceCall(msg.sender).getMockReverseMapped(bytes20(address(this)));
         (success, ) = coreAddress.call{value: value}("");
         require(success, "CFX Transfer Failed");
     }

@@ -2,7 +2,7 @@
 pragma solidity >=0.8.0;
 
 // import "../ICrossSpaceCall.sol";
-import "./MockMappingAddress.sol";
+import "./MockMappedAddress.sol";
 
 contract MockCrossSpaceCall {
 
