@@ -83,8 +83,18 @@ contract CoreBridge_multipool is Ownable, Initializable {
 
   // ================== Methods for core pos pools settings ===============
 
-  function initialize() public initializer{
-    crossSpaceCall = CrossSpaceCall(0x0888000000000000000000000000000000000006);
+
+//  function initialize() public initializer{
+//    crossSpaceCall = CrossSpaceCall(0x0888000000000000000000000000000000000006);
+//    poolUserShareRatio = 9000;
+//    CFX_COUNT_OF_ONE_VOTE = 1000;
+//    CFX_VALUE_OF_ONE_VOTE = 1000 ether;
+//  }
+
+  // Initialize function for Testing
+
+  function initialize(address crossSpaceCallAddress) public initializer{
+    crossSpaceCall = CrossSpaceCall(crossSpaceCallAddress);
     poolUserShareRatio = 9000;
     CFX_COUNT_OF_ONE_VOTE = 1000;
     CFX_VALUE_OF_ONE_VOTE = 1000 ether;
