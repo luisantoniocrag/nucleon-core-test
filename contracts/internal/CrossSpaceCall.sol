@@ -21,10 +21,10 @@ contract MockCrossSpaceCall {
         return MockMappedAddress(mappedAddress).callEVM{value: msg.value}(to, data);
     }
 
-    function staticCallEVM(bytes20 to, bytes calldata data) external payable returns (bytes memory output) {
+    function staticCallEVM(bytes20 to, bytes calldata data) external view returns (bytes memory output) {
         address payable mappedAddress = payable(address(core2e[msg.sender]));
         require(mappedAddress != address(0), "mock mapped address is not set");
-        return MockMappedAddress(mappedAddress).staticCallEVM(to, data);
+        output = MockMappedAddress(mappedAddress).staticCallEVM(to, data);
     }
 
     function withdrawFromMapped(uint256 value) external {
