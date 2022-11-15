@@ -22,7 +22,7 @@ contract MockMappedAddress {
         require(success, string(output));
     }
 
-    function staticCallEVM(bytes20 to, bytes calldata data) external payable returns (bytes memory output) {
+    function staticCallEVM(bytes20 to, bytes calldata data) external view returns (bytes memory output) {
         bool success;
         (success, output) = address(to).staticcall(data);
         require(success, string(output));
