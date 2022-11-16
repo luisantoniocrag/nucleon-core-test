@@ -444,12 +444,11 @@ describe("PoSPoolmini", async function () {
         await bridge.initialize(pool.address);
 
         //set bridge contracts from the owner account but with an invalid address
-        /*
-        await expect(pool._setbridges(
-          noValidAddress,
-          noValidAddress,
-          noValidAddress
-        )).to.eventually.rejectedWith("xd")*/
+        // await expect(pool._setbridges(
+        //   noValidAddress,
+        //   noValidAddress,
+        //   noValidAddress
+        // )).to.eventually.rejectedWith("xd")
       });
       it("should not allow register bridge addresses with invalid parameters", async () => {});
     });

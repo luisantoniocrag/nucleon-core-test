@@ -588,6 +588,25 @@ describe("CoreBridge", async function () {
     
     });
 
+    describe("fallback() Test", async () => {
+
+      it("fallback should work", async function () {
+        const { bridge , accounts, xcfx } = await deployCoreBridgeFixture();
+
+        expect  (await bridge.fallback({ value: 1})).to.not.be.reverted;
+        
+        const tx = accounts[0].sendTransaction({
+          to: bridge.address,
+          data: "0x1234",
+        });
+        
+        await expect(tx).to.not.be.reverted;
+        await expect(bridge.fallback()).to.not.be.reverted;
+
+      });
+
+    });
+
  
   });
 

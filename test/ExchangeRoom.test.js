@@ -184,8 +184,8 @@ describe("Exchangeroom", async function () {
         let XCFX_burn_estim = await exchangeroom.XCFX_burn_estim(0)
 
       //    console.log("XCFX_burn_estim " + XCFX_burn_estim);
-
-          expect((await exchangeroom.XCFX_burn_estim(0)).toString()).to.equal('0,1');
+      await exchangeroom.XCFX_burn_estim(1);
+      expect((await exchangeroom.XCFX_burn_estim(0)).toString()).to.equal('0,1');
   
       });
       
@@ -413,6 +413,10 @@ describe("Exchangeroom", async function () {
           ).to.not.be.reverted;   
       });
 
+      await expect(
+        exchangeroom._setPoolName("Test Name")
+      ).to.emit(exchangeroom,"SetPoolName"); 
+
     });
 
     describe("_setBridge() Tests", async () => {
@@ -455,6 +459,8 @@ describe("Exchangeroom", async function () {
           await expect(
               exchangeroom.connect(accounts[0])._setCoreExchange(zeroAddress)
           ).to.be.reverted; 
+
+
       });
 
       it(`_setCoreExchange should not be reverted`, async function () {
@@ -462,6 +468,10 @@ describe("Exchangeroom", async function () {
           await expect(
               exchangeroom.connect(accounts[0])._setCoreExchange(accounts[0].address)
           ).to.not.be.reverted;   
+
+          await expect(
+            exchangeroom._setCoreExchange(accounts[0].address)
+          ).to.emit(exchangeroom,"SetCoreExchange"); 
       });
 
 
@@ -486,7 +496,13 @@ describe("Exchangeroom", async function () {
         await expect(
               exchangeroom.connect(accounts[0])._setStorageaddr(accounts[0].address)
           ).to.not.be.reverted;    
+
+          await expect(
+            exchangeroom._setStorageaddr(accounts[0].address)
+          ).to.emit(exchangeroom,"SetStorageaddr"); 
       });
+
+      
 
 
     });
@@ -704,6 +720,10 @@ describe("Exchangeroom", async function () {
           await expect(
               exchangeroom.connect(accounts[1]).setlockedvotes(1)
           ).to.not.be.reverted;  
+
+          await expect(
+            exchangeroom.connect(accounts[1]).setlockedvotes(1)
+          ).to.emit(exchangeroom,"Setlockedvotes");
       });
 
 
