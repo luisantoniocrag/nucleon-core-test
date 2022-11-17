@@ -518,7 +518,8 @@ describe("CoreBridge", async function () {
           MappedAddress
         } = await deployCoreBridgeFixture();
   
-        
+        const amount = parseEther(`1000`);
+
         //initializate
         await pool.initialize();
         await bridge.initialize(CrossSpaceCall.address);
@@ -526,7 +527,7 @@ describe("CoreBridge", async function () {
   
         //register pool
         await pool.register(IDENTIFIER, 1, blsPubKey, vrfPubKey, blsPubKeyProof, {
-          value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
+          value: amount,
         });
         //check that the pool is already registered
         expect(await pool._poolRegisted()).to.be.equal(true);
@@ -534,7 +535,6 @@ describe("CoreBridge", async function () {
         //check votes is equal to 1 = only the first deposit until now
         let poolSummary = await pool.poolSummary();
         expect(String(poolSummary.totalvotes)).to.be.equal("1");
-        const amount = parseEther(`1000`);
 
         await xcfx.addMinter(accounts[0].address);
         await xcfx.addMinter(bridge.address);
@@ -549,6 +549,8 @@ describe("CoreBridge", async function () {
         await bridge._seteSpaceExroomAddress(exchangeroom.address) ;  
         await bridge._seteSpacexCFXAddress(xcfx.address) ;  
         await bridge._seteSpacebridgeAddress(bridge.address) ;  
+        await bridge._setCfxCountOfOneVote(1) ;  
+
         await CrossSpaceCall.setMockMapped(accounts[0].address, MappedAddress.address);
         await CrossSpaceCall.setMockMapped(bridge.address, MappedAddress.address);
 
@@ -557,22 +559,34 @@ describe("CoreBridge", async function () {
         await exchangeroom._setXCFXaddr(xcfx.address);
         await exchangeroom._setminexchangelimits(1);
         await exchangeroom._setLockPeriod(0,0);
-        await exchangeroom.setlockedvotes(parseEther(`2000`));
+        await exchangeroom.setlockedvotes(parseEther(`1`));
         await exchangeroom._setStorageaddr(accounts[0].address);
         await exchangeroom._setstorageBridge(accounts[0].address);
         await exchangeroom._setBridge(bridge.address); 
         await exchangeroom._setCoreExchange(MappedAddress.address); 
+        const tx = accounts[0].sendTransaction({
+          to: MappedAddress.address,
+          value: parseEther(`100000`),
+        });
+        await expect(tx).to.not.be.reverted;
+
+   //     await expect (exchangeroom.CFX_exchange_XCFX({value : parseEther(`1000`)})).to.be.reverted;
+   //     await expect (exchangeroom.CFX_exchange_XCFX({value : parseEther(`1000`)})).to.not.be.reverted;
 
         await bridge.syncALLwork() ;  
 
-      //  await expect( bridge.syncALLwork() ).to.be.reverted;  
+        await expect(bridge._setPoolUserShareRatio(0)).to.be.reverted;  
+        await expect(bridge._setPoolUserShareRatio(100)).to.not.be.reverted;   
+        await expect(bridge._changePoolAddress(accounts[0].address,accounts[0].address)).to.not.be.reverted;    
 
-      //  let infos = await bridge.syncALLwork();
+        await expect( bridge.syncALLwork() ).to.not.be.reverted;  
 
-      //  console.log('infos is ' + infos);
+        await expect( bridge._clearTheStates() ).to.not.be.reverted;  
+        await expect( bridge.connect(accounts[1])._setCfxCountOfOneVote(1)).to.be.reverted;  
+        await expect( bridge.connect(accounts[1])._setPoolUserShareRatio(1)).to.be.reverted;  
+        await expect( bridge.connect(accounts[1])._clearTheStates()).to.be.reverted;  
 
-
-
+    
 
       });
 
