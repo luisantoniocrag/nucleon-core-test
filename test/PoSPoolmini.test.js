@@ -10,6 +10,7 @@ const errorMessages = {
   cfxTransferFailed: "CFX Transfer Failed",
   increaseStakeMinVotePower: "Minimal votePower is 1",
   increaseStakeMsgValue: "msg.value should be votePower * 1000 ether",
+  decreaseStakeVPNotEnough: "Votes is not enough",
 };
 
 describe("PoSPoolmini", async function () {
@@ -643,8 +644,6 @@ describe("PoSPoolmini", async function () {
     it("should decrease staking amount", async () => {
       const { pool, ONE_VOTE_CFX, bridge, accounts } =
         await registeredPoolPoSPoolminiFixture();
-      //check that the pool is already registered
-      expect(await pool._poolRegisted()).to.be.equal(true);
 
       //check that the pool is already registered
       expect(await pool._poolRegisted()).to.be.equal(true);
@@ -670,24 +669,27 @@ describe("PoSPoolmini", async function () {
       expect(String(poolSummary.totalvotes)).to.be.equal("14");
 
       //decrease 1 by user 1
-      await bridge.connect(accounts[1]).handleUnstake(1);
+      await expect(
+        bridge.connect(accounts[1]).handleUnstake(1)
+      ).to.eventually.emit("DecreasePoSStake");
 
       //decrease 2 by user 2
-      await bridge.connect(accounts[2]).handleUnstake(2);
+      await expect(
+        bridge.connect(accounts[2]).handleUnstake(2)
+      ).to.eventually.emit("DecreasePoSStake");
 
       //decrease 4 by user 3
-      await bridge.connect(accounts[3]).handleUnstake(4);
+      await expect(
+        bridge.connect(accounts[3]).handleUnstake(4)
+      ).to.eventually.emit("DecreasePoSStake");
 
       poolSummary = await pool.poolSummary();
       expect(String(poolSummary.totalvotes)).to.be.equal("7");
     });
 
-    it("should not decrease staking amount", async () => {
+    it("should NOT decrease staking amount if msg.sender is not bridge address", async () => {
       const { pool, ONE_VOTE_CFX, bridge, accounts } =
         await registeredPoolPoSPoolminiFixture();
-      //check that the pool is already registered
-      expect(await pool._poolRegisted()).to.be.equal(true);
-
       //check that the pool is already registered
       expect(await pool._poolRegisted()).to.be.equal(true);
 
@@ -699,32 +701,52 @@ describe("PoSPoolmini", async function () {
       await bridge.connect(accounts[1]).campounds(1, {
         value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
       });
-
-      //deposit 7 votes by user 2
-      await bridge.connect(accounts[2]).campounds(7, {
-        value: ethers.utils.parseEther(`${7 * ONE_VOTE_CFX}`),
-      });
-
-      await bridge.connect(accounts[3]).campounds(5, {
-        value: ethers.utils.parseEther(`${5 * ONE_VOTE_CFX}`),
-      });
       poolSummary = await pool.poolSummary();
-      expect(String(poolSummary.totalvotes)).to.be.equal("14");
+      expect(String(poolSummary.totalvotes)).to.be.equal("2");
 
-      //unstake amount greather amount that has been staked
-      await expect(bridge.connect(accounts[1]).handleUnstake(20)).to.eventually
-        .rejected;
-
-      //string instead of uint64
-      await expect(bridge.connect(accounts[3]).handleUnstake("a")).to.eventually
-        .rejected;
-
-      //uint64[] instead of uint64
-      await expect(bridge.connect(accounts[3]).handleUnstake([4, 3, 2, 1])).to
-        .eventually.rejected;
+      //decrease 1 by user 1 directly calling to pool instead through bridge
+      await expect(
+        pool.connect(accounts[1]).decreaseStake(1)
+      ).to.eventually.rejectedWith(errorMessages.onlybridge);
 
       poolSummary = await pool.poolSummary();
-      expect(String(poolSummary.totalvotes)).to.be.equal("14");
+      expect(String(poolSummary.totalvotes)).to.be.equal("2");
+    });
+
+    it("should NOT decrease staking amount if if pool address is not currently registered", async () => {
+      const { pool, bridge, accounts } = await initializePoSPoolminiFixture();
+      //initialize and set bridge
+      await bridge.initialize(pool.address);
+      await pool._setbridges(bridge.address, bridge.address, bridge.address);
+
+      //deposit 1 votes by user 1 directly instead through bridge addres
+      await expect(
+        bridge.connect(accounts[1]).handleUnstake(1)
+      ).to.eventually.rejectedWith(errorMessages.onlyRegisted);
+
+      poolSummary = await pool.poolSummary();
+      expect(String(poolSummary.totalvotes)).to.be.equal("0");
+    });
+
+    it("should NOT decrease staking aomunt if vote power is not enough", async () => {
+      const { pool, ONE_VOTE_CFX, bridge, accounts } =
+        await registeredPoolPoSPoolminiFixture();
+
+      //deposit 1 votes by user 1
+      await bridge.connect(accounts[1]).campounds(1, {
+        value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
+      });
+
+      let poolSummary = await pool.poolSummary();
+      expect(String(poolSummary.totalvotes)).to.be.equal("2");
+
+      //decrease 1 by user 1
+      await expect(
+        bridge.connect(accounts[1]).handleUnstake(3)
+      ).to.eventually.rejectedWith(errorMessages.decreaseStakeVPNotEnough);
+
+      poolSummary = await pool.poolSummary();
+      expect(String(poolSummary.totalvotes)).to.be.equal("2");
     });
   });
 
