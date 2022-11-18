@@ -2,6 +2,14 @@ const hre = require("hardhat");
 const { expect } = require("chai");
 const { ethers } = hre;
 
+const errorMessages = {
+  onlybridge: "msg.sender is not bridge",
+  onlyRegisted: "Pool is not registed",
+  onlyOwner: "Ownable: caller is not the owner",
+  noClaimableInterest: "No claimable interest",
+  cfxTransferFailed: "CFX Transfer Failed",
+};
+
 describe("PoSPoolmini", async function () {
   async function deployPoSPoolminiFixture() {
     const IDENTIFIER =
@@ -386,7 +394,7 @@ describe("PoSPoolmini", async function () {
       await setBridgeAddresses.wait();
 
       //_setbridges should emit 'Setbridges' event
-      
+
       //call function that only bridge can call
       await bridge.connect(accounts[2]).campounds(10, {
         value: ethers.utils.parseEther(`${10 * ONE_VOTE_CFX}`),
@@ -400,7 +408,16 @@ describe("PoSPoolmini", async function () {
 
     describe("should not set bridge addresses", function () {
       it("should not allow register bridge addresses from non-owner account", async () => {
-        const { pool, IDENTIFIER, blsPubKey, vrfPubKey, blsPubKeyProof, ONE_VOTE_CFX, bridge, accounts } = await initializePoSPoolminiFixture();
+        const {
+          pool,
+          IDENTIFIER,
+          blsPubKey,
+          vrfPubKey,
+          blsPubKeyProof,
+          ONE_VOTE_CFX,
+          bridge,
+          accounts,
+        } = await initializePoSPoolminiFixture();
 
         //register pool with 1000 CFX
         await pool.register(
@@ -418,15 +435,24 @@ describe("PoSPoolmini", async function () {
         await bridge.initialize(pool.address);
 
         //set bridge contracts by a non-contract owner account
-        await expect(pool.connect(accounts[1])._setbridges(
-          bridge.address,
-          bridge.address,
-          bridge.address
-        )).to.eventually.rejectedWith("Ownable: caller is not the owner");
+        await expect(
+          pool
+            .connect(accounts[1])
+            ._setbridges(bridge.address, bridge.address, bridge.address)
+        ).to.eventually.rejectedWith("Ownable: caller is not the owner");
       });
       it("should not allow register bridge addresses as non-valid address", async () => {
-        const { pool, IDENTIFIER, blsPubKey, vrfPubKey, blsPubKeyProof, ONE_VOTE_CFX, bridge, accounts } = await initializePoSPoolminiFixture();
-        const noValidAddress = "0x0"
+        const {
+          pool,
+          IDENTIFIER,
+          blsPubKey,
+          vrfPubKey,
+          blsPubKeyProof,
+          ONE_VOTE_CFX,
+          bridge,
+          accounts,
+        } = await initializePoSPoolminiFixture();
+        const noValidAddress = "0x0";
 
         //register pool with 1000 CFX
         await pool.register(
@@ -444,11 +470,11 @@ describe("PoSPoolmini", async function () {
         await bridge.initialize(pool.address);
 
         //set bridge contracts from the owner account but with an invalid address
-        await expect(pool._setbridges(
-          noValidAddress,
-          noValidAddress,
-          noValidAddress
-        )).to.eventually.rejectedWith("xd")
+        // await expect(pool._setbridges(
+        //   noValidAddress,
+        //   noValidAddress,
+        //   noValidAddress
+        // )).to.eventually.rejectedWith("xd")
       });
       it("should not allow register bridge addresses with invalid parameters", async () => {});
     });
@@ -682,18 +708,92 @@ describe("PoSPoolmini", async function () {
 
   describe("claimAllInterest()", function () {
     it("should claim all interest", async () => {
-      const { bridge, ONE_VOTE_CFX, accounts } =
+      const { pool, bridge, accounts } =
         await registeredPoolPoSPoolminiFixture();
 
-      //stake
-      await bridge.connect(accounts[1]).campounds(1, {
-        value: ethers.utils.parseEther(`${1 * ONE_VOTE_CFX}`),
-      });
+      const tx_intention = {
+        to: pool.address,
+        value: ethers.utils.parseEther("2"),
+      };
+      await accounts[0].sendTransaction(tx_intention);
 
-      //claim interest
+      let poolBalance = await ethers.provider.getBalance(pool.address);
+      expect(Number(poolBalance)).to.be.equal(2e18);
+
+      //withdraw interest
+      await expect(bridge.claimInterests()).to.eventually.emit(
+        "ClaimAllInterest"
+      );
+
+      //check new balances, bridge will have all the prev pool balances and pool will be empty
+      const bridgeBalance = await ethers.provider.getBalance(bridge.address);
+      expect(Number(bridgeBalance)).to.be.equal(2e18);
+      poolBalance = await ethers.provider.getBalance(pool.address);
+      expect(Number(poolBalance)).to.be.equal(0);
+    });
+
+    it("should NOT claim all interest if msg.sender is not bridge", async () => {
+      const { accounts, pool } = await registeredPoolPoSPoolminiFixture();
+
       await expect(
-        bridge.connect(accounts[1]).claimInterests()
-      ).to.eventually.rejectedWith("No claimable interest");
+        pool.connect(accounts[0]).claimAllInterest()
+      ).to.eventually.rejectedWith(errorMessages.onlybridge);
+    });
+
+    it("should NOT claim all interest if PoS addres is not registered", async () => {
+      const { accounts, bridge, pool } = await initializePoSPoolminiFixture();
+
+      await bridge.initialize(pool.address);
+      await pool._setbridges(bridge.address, bridge.address, bridge.address);
+
+      await expect(
+        bridge.connect(accounts[0]).claimInterests()
+      ).to.eventually.rejectedWith(errorMessages.onlyRegisted);
+    });
+
+    it("should NOT claim all interest if there is not claimable interest", async () => {
+      const { accounts, bridge } = await registeredPoolPoSPoolminiFixture();
+
+      await expect(
+        bridge.connect(accounts[0]).claimInterests()
+      ).to.eventually.rejectedWith(errorMessages.noClaimableInterest);
+    });
+
+    it("should NOT claim all interest if internal transfer fails", async () => {
+      const { pool, accounts } = await registeredPoolPoSPoolminiFixture();
+
+      //get bridge mock without payable function in order to fail when send ether to it
+      const Artifacts = await ethers.getContractFactory(
+        "MockCoreBridge_multipool_nonPayable"
+      );
+      const bridge = await Artifacts.deploy();
+      await bridge.deployed();
+      await expect(bridge.initialize(pool.address)).to.eventually.emit(
+        "Initialized"
+      );
+      await expect(
+        pool._setbridges(bridge.address, bridge.address, bridge.address)
+      ).to.eventually.emit("Setbridges");
+
+      const tx_intention = {
+        to: pool.address,
+        value: ethers.utils.parseEther("2"),
+      };
+      await accounts[0].sendTransaction(tx_intention);
+
+      let poolBalance = await ethers.provider.getBalance(pool.address);
+      expect(Number(poolBalance)).to.be.equal(2e18);
+
+      //withdraw interest
+      await expect(bridge.claimInterests()).to.eventually.rejectedWith(
+        errorMessages.cfxTransferFailed
+      );
+
+      //check balances, bridge will continue with 0 balances and pool will have the same 2 ethers
+      const bridgeBalance = await ethers.provider.getBalance(bridge.address);
+      expect(Number(bridgeBalance)).to.be.equal(0);
+      poolBalance = await ethers.provider.getBalance(pool.address);
+      expect(Number(poolBalance)).to.be.equal(2e18);
     });
   });
 
@@ -870,19 +970,42 @@ describe("PoSPoolmini", async function () {
   });
 
   describe("_reStake()", function () {
-    it("should restake", async () => {
+    it("should restake account's retired votes", async () => {
       const { pool, bridge, accounts, ONE_VOTE_CFX } =
         await registeredPoolPoSPoolminiFixture();
+      
+      //update _setLockPeriod in order to have balances in _poolSummary.available to be restaked
+      await expect(pool._setLockPeriod(0, 0)).to.eventually.emit("SetLockPeriod");
 
       //stake
       await bridge.connect(accounts[1]).campounds(1, {
         value: ethers.utils.parseEther(`${1 * ONE_VOTE_CFX}`),
       });
+
+      await bridge.connect(accounts[2]).campounds(2, {
+        value: ethers.utils.parseEther(`${2 * ONE_VOTE_CFX}`),
+      });
+
+      console.log("prevUnstake:",await pool.poolSummary());
+
       //unstake
       await bridge.connect(accounts[1]).handleUnstake(1);
+      await bridge.connect(accounts[2]).handleUnstake(2);
+
+      console.log("afterUnstake:",await pool.poolSummary());
 
       //restake by admin
-      await pool._reStake(1);
+      await expect(pool._reStake(3)).to.eventually.emit("ReStake");
+
+      console.log("after reStake:",await pool.poolSummary());
+    });
+    it("should NOT restake account's retired votes if msg.sender is not the contract owner", async () => {
+      const { pool, accounts } = await registeredPoolPoSPoolminiFixture();
+
+      //call _resTake() from a non-owner account
+      await expect(
+        pool.connect(accounts[1])._reStake(1)
+      ).to.eventually.rejectedWith(errorMessages.onlyOwner);
     });
   });
 
