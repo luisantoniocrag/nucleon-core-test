@@ -3,9 +3,13 @@ const { expect } = require("chai");
 const { ethers } = hre;
 
 const errorMessages = {
+  initializeTwice: "Initializable: contract is already initialized",
+  poolRegistered: "Pool is already registed",
   onlybridge: "msg.sender is not bridge",
   onlyRegisted: "Pool is not registed",
   onlyOwner: "Ownable: caller is not the owner",
+  registerVP: "votePower should be 1",
+  registerMsgValue: "msg.value should be 1000 CFX",
   noClaimableInterest: "No claimable interest",
   cfxTransferFailed: "CFX Transfer Failed",
   increaseStakeMinVotePower: "Minimal votePower is 1",
@@ -119,7 +123,7 @@ describe("PoSPoolmini", async function () {
         //pool already initialized
         const { pool } = await initializePoSPoolminiFixture();
         await expect(pool.initialize()).to.eventually.rejectedWith(
-          "Initializable: contract is already initialized'"
+          errorMessages.initializeTwice
         );
       });
 
@@ -267,104 +271,98 @@ describe("PoSPoolmini", async function () {
       expect(String(poolSummary.claimedInterest)).to.equal("0");
     });
 
-    describe("should not register a pos pool", function () {
-      it("should not register a pos pool twice", async () => {
-        const {
-          pool,
-          IDENTIFIER,
-          ONE_VOTE_CFX,
-          blsPubKey,
-          vrfPubKey,
-          blsPubKeyProof,
-        } = await initializePoSPoolminiFixture();
-        const votes = 1;
+    it("should NOT register a pos pool twice", async () => {
+      const {
+        pool,
+        IDENTIFIER,
+        ONE_VOTE_CFX,
+        blsPubKey,
+        vrfPubKey,
+        blsPubKeyProof,
+      } = await initializePoSPoolminiFixture();
+      const votes = 1;
 
-        //register pool with 1000 CFX
-        await pool.register(
-          IDENTIFIER,
-          votes,
-          blsPubKey,
-          vrfPubKey,
-          blsPubKeyProof,
-          {
+      //register pool with 1000 CFX
+      await pool.register(
+        IDENTIFIER,
+        votes,
+        blsPubKey,
+        vrfPubKey,
+        blsPubKeyProof,
+        {
+          value: ethers.utils.parseEther(`${votes * ONE_VOTE_CFX}`),
+        }
+      );
+      const poolSummary = await pool.poolSummary();
+
+      expect(await pool._poolRegisted()).to.be.equal(true);
+      expect(String(poolSummary.totalvotes)).to.equal(votes.toString());
+      expect(String(poolSummary.claimedInterest)).to.equal("0");
+
+      await expect(
+        pool.register(IDENTIFIER, votes, blsPubKey, vrfPubKey, blsPubKeyProof, {
+          value: ethers.utils.parseEther(`${votes * ONE_VOTE_CFX}`),
+        })
+      ).to.eventually.rejectedWith(errorMessages.poolRegistered);
+    });
+
+    it("should NOT register if msg.sender is not contract owner", async () => {
+      const {
+        pool,
+        IDENTIFIER,
+        ONE_VOTE_CFX,
+        blsPubKey,
+        vrfPubKey,
+        blsPubKeyProof,
+        accounts,
+      } = await initializePoSPoolminiFixture();
+      const votes = 1;
+
+      //try register from a no owner contract address
+      await expect(
+        pool
+          .connect(accounts[1])
+          .register(IDENTIFIER, votes, blsPubKey, vrfPubKey, blsPubKeyProof, {
             value: ethers.utils.parseEther(`${votes * ONE_VOTE_CFX}`),
-          }
-        );
-        const poolSummary = await pool.poolSummary();
-
-        expect(await pool._poolRegisted()).to.be.equal(true);
-        expect(String(poolSummary.totalvotes)).to.equal(votes.toString());
-        expect(String(poolSummary.claimedInterest)).to.equal("0");
-
-        await expect(
-          pool.register(
-            IDENTIFIER,
-            votes,
-            blsPubKey,
-            vrfPubKey,
-            blsPubKeyProof,
-            {
-              value: ethers.utils.parseEther(`${votes * ONE_VOTE_CFX}`),
-            }
-          )
-        ).to.eventually.rejectedWith("Pool is already registed");
-      });
-      it("should not register if caller is not the owner contract", async () => {
-        const {
-          pool,
-          IDENTIFIER,
-          ONE_VOTE_CFX,
-          blsPubKey,
-          vrfPubKey,
-          blsPubKeyProof,
-          accounts,
-        } = await initializePoSPoolminiFixture();
-        const votes = 1;
-
-        //try register from a no owner contract address
-        await expect(
-          pool
-            .connect(accounts[1])
-            .register(IDENTIFIER, votes, blsPubKey, vrfPubKey, blsPubKeyProof, {
-              value: ethers.utils.parseEther(`${votes * ONE_VOTE_CFX}`),
-            })
-        ).to.eventually.rejectedWith("Ownable: caller is not the owner");
-      });
-      it("should not register if bad data is passed as parameter", async () => {
-        const { pool, blsPubKey, vrfPubKey, blsPubKeyProof } =
-          await deployPoSPoolminiFixture();
-
-        //initializate
-        await pool.initialize();
-
-        //try to call register() with error type of data
-        await expect(
-          pool.register(1, 1, blsPubKey, vrfPubKey, blsPubKeyProof, {
-            value: ethers.utils.parseEther(`${10000}`),
           })
-        ).to.eventually.rejected;
+      ).to.eventually.rejectedWith(errorMessages.onlyOwner);
+    });
 
-        //state should not be updated
-        const poolSummary = await pool.poolSummary();
-        expect(await pool._poolRegisted()).to.be.equal(false);
-        expect(Number(poolSummary.totalvotes)).to.equal(0);
-        expect(Number(poolSummary.claimedInterest)).to.equal(0);
-      });
-      it("should not register if votes is less than 1 or msg.value is less than 1000 CFX", async () => {
-        const { pool, blsPubKey, vrfPubKey, blsPubKeyProof, IDENTIFIER } =
-          await deployPoSPoolminiFixture();
+    it("should NOT register if bad data is passed as parameter", async () => {
+      const { pool, blsPubKey, vrfPubKey, blsPubKeyProof } =
+        await deployPoSPoolminiFixture();
 
-        await expect(
-          pool.register(IDENTIFIER, 0, blsPubKey, vrfPubKey, blsPubKeyProof, {
-            value: ethers.utils.parseEther(`${1000}`),
-          })
-        ).to.eventually.rejectedWith("votePower should be 1");
-        await expect(
-          pool.register(IDENTIFIER, 1, blsPubKey, vrfPubKey, blsPubKeyProof, {
-            value: ethers.utils.parseEther(`${10}`),
-          })
-        ).to.eventually.rejectedWith("msg.value should be 1000 CFX");
-      });
+      //initializate
+      await pool.initialize();
+
+      //try to call register() with error type of data
+      await expect(
+        pool.register(1, 1, blsPubKey, vrfPubKey, blsPubKeyProof, {
+          value: ethers.utils.parseEther(`${10000}`),
+        })
+      ).to.eventually.rejected;
+
+      //state should not be updated
+      const poolSummary = await pool.poolSummary();
+      expect(await pool._poolRegisted()).to.be.equal(false);
+      expect(Number(poolSummary.totalvotes)).to.equal(0);
+      expect(Number(poolSummary.claimedInterest)).to.equal(0);
+    });
+
+    it("should NOT register if votes is less than 1 or msg.value is less than 1000 CFX", async () => {
+      const { pool, blsPubKey, vrfPubKey, blsPubKeyProof, IDENTIFIER } =
+        await deployPoSPoolminiFixture();
+
+      await expect(
+        pool.register(IDENTIFIER, 0, blsPubKey, vrfPubKey, blsPubKeyProof, {
+          value: ethers.utils.parseEther(`${1000}`),
+        })
+      ).to.eventually.rejectedWith(errorMessages.registerVP);
+      await expect(
+        pool.register(IDENTIFIER, 1, blsPubKey, vrfPubKey, blsPubKeyProof, {
+          value: ethers.utils.parseEther(`${10}`),
+        })
+      ).to.eventually.rejectedWith(errorMessages.registerMsgValue);
     });
   });
 
@@ -410,77 +408,32 @@ describe("PoSPoolmini", async function () {
       expect(String(poolSummary.totalvotes)).to.be.equal("19");
     });
 
-    describe("should not set bridge addresses", function () {
-      it("should not allow register bridge addresses from non-owner account", async () => {
-        const {
-          pool,
-          IDENTIFIER,
-          blsPubKey,
-          vrfPubKey,
-          blsPubKeyProof,
-          ONE_VOTE_CFX,
-          bridge,
-          accounts,
-        } = await initializePoSPoolminiFixture();
+    it("should NOT allow register bridge addresses if msg.sender is not contract owner", async () => {
+      const {
+        pool,
+        IDENTIFIER,
+        blsPubKey,
+        vrfPubKey,
+        blsPubKeyProof,
+        ONE_VOTE_CFX,
+        bridge,
+        accounts,
+      } = await initializePoSPoolminiFixture();
 
-        //register pool with 1000 CFX
-        await pool.register(
-          IDENTIFIER,
-          1,
-          blsPubKey,
-          vrfPubKey,
-          blsPubKeyProof,
-          {
-            value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
-          }
-        );
-
-        //initialize bridge contract by contract owner
-        await bridge.initialize(pool.address);
-
-        //set bridge contracts by a non-contract owner account
-        await expect(
-          pool
-            .connect(accounts[1])
-            ._setbridges(bridge.address, bridge.address, bridge.address)
-        ).to.eventually.rejectedWith("Ownable: caller is not the owner");
+      //register pool with 1000 CFX
+      await pool.register(IDENTIFIER, 1, blsPubKey, vrfPubKey, blsPubKeyProof, {
+        value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
       });
-      it("should not allow register bridge addresses as non-valid address", async () => {
-        const {
-          pool,
-          IDENTIFIER,
-          blsPubKey,
-          vrfPubKey,
-          blsPubKeyProof,
-          ONE_VOTE_CFX,
-          bridge,
-          accounts,
-        } = await initializePoSPoolminiFixture();
-        const noValidAddress = "0x0";
 
-        //register pool with 1000 CFX
-        await pool.register(
-          IDENTIFIER,
-          1,
-          blsPubKey,
-          vrfPubKey,
-          blsPubKeyProof,
-          {
-            value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
-          }
-        );
+      //initialize bridge contract by contract owner
+      await bridge.initialize(pool.address);
 
-        //initialize bridge contract from the contract owner
-        await bridge.initialize(pool.address);
-
-        //set bridge contracts from the owner account but with an invalid address
-        // await expect(pool._setbridges(
-        //   noValidAddress,
-        //   noValidAddress,
-        //   noValidAddress
-        // )).to.eventually.rejectedWith("xd")
-      });
-      it("should not allow register bridge addresses with invalid parameters", async () => {});
+      //set bridge contracts by a non-contract owner account
+      await expect(
+        pool
+          .connect(accounts[1])
+          ._setbridges(bridge.address, bridge.address, bridge.address)
+      ).to.eventually.rejectedWith(errorMessages.onlyOwner);
     });
   });
 
@@ -501,9 +454,11 @@ describe("PoSPoolmini", async function () {
       );
 
       //update lock in/out period from owner account
-      await pool
-        .connect(accounts[0])
-        ._setLockPeriod(newLockInPeriod, newLockOutPeriod);
+      await expect(
+        pool
+          .connect(accounts[0])
+          ._setLockPeriod(newLockInPeriod, newLockOutPeriod)
+      ).to.eventually.emit("SetLockPeriod");
 
       //check new lock in/out period
       expect(String(await pool._poolLockPeriod_in())).to.be.equal(
@@ -513,6 +468,33 @@ describe("PoSPoolmini", async function () {
         String(newLockOutPeriod)
       );
     });
+
+    it("should NOT update the lock period if msg.sender is not contract owner", async () => {
+      const { pool, accounts } = await initializePoSPoolminiFixture();
+
+      const intialLockInPeriod = 2419200;
+      const initialLockOutPeriod = 185320;
+
+      //check lock in/out period
+      expect(String(await pool._poolLockPeriod_in())).to.be.equal(
+        String(intialLockInPeriod)
+      );
+      expect(String(await pool._poolLockPeriod_out())).to.be.equal(
+        String(initialLockOutPeriod)
+      );
+
+      await expect(
+        pool.connect(accounts[1])._setLockPeriod(0, 0)
+      ).to.eventually.rejectedWith(errorMessages.onlyOwner);
+
+      //check lock in/out period
+      expect(String(await pool._poolLockPeriod_in())).to.be.equal(
+        String(intialLockInPeriod)
+      );
+      expect(String(await pool._poolLockPeriod_out())).to.be.equal(
+        String(initialLockOutPeriod)
+      );
+    });
   });
 
   describe("_setCfxCountOfOneVote()", async function () {
@@ -520,11 +502,18 @@ describe("PoSPoolmini", async function () {
       const { pool, accounts } = await initializePoSPoolminiFixture();
 
       //update CFX_COUNT_OF_ONE_VOTE and CFX_VALUE_OF_ONE_VOTE from owner address call
-      let call = await pool.connect(accounts[0])._setCfxCountOfOneVote(2000);
-      call = await call.wait();
+      await expect(
+        pool.connect(accounts[0])._setCfxCountOfOneVote(2000)
+      ).to.eventually.emit("SetCfxCountOfOneVote");
+    });
 
-      //check if correct event is triggered
-      expect(call.events[0].event).to.be.equal("SetCfxCountOfOneVote");
+    it("should NOT update cfx count of one vote if msg.sender is not contract owner", async () => {
+      const { pool, accounts } = await initializePoSPoolminiFixture();
+
+      //update CFX_COUNT_OF_ONE_VOTE and CFX_VALUE_OF_ONE_VOTE from owner address call
+      await expect(
+        pool.connect(accounts[1])._setCfxCountOfOneVote(2000)
+      ).to.eventually.rejectedWith(errorMessages.onlyOwner);
     });
   });
 
@@ -542,6 +531,23 @@ describe("PoSPoolmini", async function () {
 
       //check new pool name
       expect(await pool.poolName()).to.be.equal(newName);
+    });
+
+    it("should NOT update the pool name", async () => {
+      const { pool, accounts } = await initializePoSPoolminiFixture();
+      const initialName = "Nucleon Conflux Pos Pool 01";
+      const newName = "New Pool Name";
+
+      //check prev pool name
+      expect(await pool.poolName()).to.be.equal(initialName);
+
+      //update pool name from owner account
+      await expect(
+        pool.connect(accounts[1])._setPoolName(newName)
+      ).to.eventually.rejectedWith(errorMessages.onlyOwner);
+
+      //check new pool name
+      expect(await pool.poolName()).to.be.equal(initialName);
     });
   });
 
