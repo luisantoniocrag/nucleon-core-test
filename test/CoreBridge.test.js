@@ -44,13 +44,35 @@ describe("CoreBridge", async function () {
     const pool = await PoSPoolmini.deploy(staking.address, posRegister.address);
     await pool.deployed();
 
+    /// CrossSpaceCall Deployment
 
+    const [owner, ] = await ethers.getSigners();
+
+    const MockMappedAddress = await ethers.getContractFactory("MockMappedAddress")
+    const MappedAddress = await MockMappedAddress.deploy(owner.address)
+
+    const MockCrossSpaceCall = await ethers.getContractFactory("MockCrossSpaceCall")
+    const CrossSpaceCall = await MockCrossSpaceCall.deploy()
+
+    await MappedAddress.deployed()
+    await CrossSpaceCall.deployed()
+
+    await CrossSpaceCall.setMockMapped(owner.address, MappedAddress.address)
+
+    await CrossSpaceCall.transferEVM(MappedAddress.address, {value: 1000})
+
+    await CrossSpaceCall.withdrawFromMapped(1000)
+
+
+    /// ExchangeRoom Deployment
 
     const Exchangeroom = await ethers.getContractFactory("Exchangeroom");
     const exchangeroom = await Exchangeroom.deploy();
     await exchangeroom.deployed();
     
     return {
+      MappedAddress,
+      CrossSpaceCall,
       exchangeroom,
       xcfx,
       accounts,
@@ -138,10 +160,10 @@ describe("CoreBridge", async function () {
       
         it("initialize should not revert", async () => {
           
-          const { bridge} = await deployCoreBridgeFixture();
+          const { bridge, CrossSpaceCall} = await deployCoreBridgeFixture();
+
   
-  
-          await expect( bridge.initialize() ).to.not.be.reverted;  
+          await expect( bridge.initialize(CrossSpaceCall.address) ).to.not.be.reverted;  
   
         });
   
@@ -481,22 +503,90 @@ describe("CoreBridge", async function () {
       
       it("syncALLwork should work", async () => {
           
-        const { bridge, accounts} = await deployCoreBridgeFixture();
+        const {
+          exchangeroom,
+          xcfx,
+          accounts,
+          pool,
+          bridge,
+          ONE_VOTE_CFX,
+          IDENTIFIER,
+          blsPubKey,
+          vrfPubKey,
+          blsPubKeyProof,
+          CrossSpaceCall,
+          MappedAddress
+        } = await deployCoreBridgeFixture();
+  
+        const amount = parseEther(`1000`);
+
+        //initializate
+        await pool.initialize();
+        await bridge.initialize(CrossSpaceCall.address);
+        await pool._setbridges(bridge.address, bridge.address, bridge.address);
+  
+        //register pool
+        await pool.register(IDENTIFIER, 1, blsPubKey, vrfPubKey, blsPubKeyProof, {
+          value: amount,
+        });
+        //check that the pool is already registered
+        expect(await pool._poolRegisted()).to.be.equal(true);
+  
+        //check votes is equal to 1 = only the first deposit until now
+        let poolSummary = await pool.poolSummary();
+        expect(String(poolSummary.totalvotes)).to.be.equal("1");
+
+        await xcfx.addMinter(accounts[0].address);
+        await xcfx.addMinter(bridge.address);
+        await xcfx.addMinter(exchangeroom.address);
+        await xcfx.addMinter(MappedAddress.address);
+        await xcfx.addMinter(CrossSpaceCall.address);
 
         await bridge._settrustedtrigers(accounts[0].address, true) ;  
-        
-        let triggerState = await bridge.gettrigerstate(accounts[0].address);
+        await bridge._settrustedtrigers(bridge.address, true) ;  
+        await bridge._settrustedtrigers(pool.address, true) ;  
+        await bridge._addPoolAddress(pool.address) ;  
+        await bridge._seteSpaceExroomAddress(exchangeroom.address) ;  
+        await bridge._seteSpacexCFXAddress(xcfx.address) ;  
+        await bridge._seteSpacebridgeAddress(bridge.address) ;  
+        await bridge._setCfxCountOfOneVote(1) ;  
 
-        console.log("gettrigerstate returned " + triggerState);
+        await CrossSpaceCall.setMockMapped(accounts[0].address, MappedAddress.address);
+        await CrossSpaceCall.setMockMapped(bridge.address, MappedAddress.address);
 
-        await expect( bridge.syncALLwork()).to.be.reverted;  
+        await exchangeroom.initialize(xcfx.address, amount, { value: amount });      
+        await exchangeroom.connect(accounts[0])._setBridge(accounts[0].address);
+        await exchangeroom._setXCFXaddr(xcfx.address);
+        await exchangeroom._setminexchangelimits(1);
+        await exchangeroom._setLockPeriod(0,0);
+        await exchangeroom.setlockedvotes(parseEther(`1`));
+        await exchangeroom._setStorageaddr(accounts[0].address);
+        await exchangeroom._setstorageBridge(accounts[0].address);
+        await exchangeroom._setBridge(bridge.address); 
+        await exchangeroom._setCoreExchange(MappedAddress.address); 
+        const tx = accounts[0].sendTransaction({
+          to: MappedAddress.address,
+          value: parseEther(`100000`),
+        });
+        await expect(tx).to.not.be.reverted;
 
-      //  let infos = await bridge.connect(accounts[0]).syncALLwork();
+   //     await expect (exchangeroom.CFX_exchange_XCFX({value : parseEther(`1000`)})).to.be.reverted;
+   //     await expect (exchangeroom.CFX_exchange_XCFX({value : parseEther(`1000`)})).to.not.be.reverted;
 
-      //  console.log('infos is ' + infos);
+        await bridge.syncALLwork() ;  
 
+        await expect(bridge._setPoolUserShareRatio(0)).to.be.reverted;  
+        await expect(bridge._setPoolUserShareRatio(100)).to.not.be.reverted;   
+        await expect(bridge._changePoolAddress(accounts[0].address,accounts[0].address)).to.not.be.reverted;    
 
+        await expect( bridge.syncALLwork() ).to.not.be.reverted;  
 
+        await expect( bridge._clearTheStates() ).to.not.be.reverted;  
+        await expect( bridge.connect(accounts[1])._setCfxCountOfOneVote(1)).to.be.reverted;  
+        await expect( bridge.connect(accounts[1])._setPoolUserShareRatio(1)).to.be.reverted;  
+        await expect( bridge.connect(accounts[1])._clearTheStates()).to.be.reverted;  
+
+    
 
       });
 
@@ -505,14 +595,31 @@ describe("CoreBridge", async function () {
         const { bridge, accounts} = await deployCoreBridgeFixture();
 
         await expect( bridge.connect(accounts[3]).syncALLwork()).to.be.reverted;  
+        await expect( bridge.syncALLwork() ).to.be.reverted;  
+
 
       });
     
     });
 
+    describe("fallback() Test", async () => {
 
+      it("fallback should work", async function () {
+        const { bridge , accounts, xcfx } = await deployCoreBridgeFixture();
 
+        expect  (await bridge.fallback({ value: 1})).to.not.be.reverted;
+        
+        const tx = accounts[0].sendTransaction({
+          to: bridge.address,
+          data: "0x1234",
+        });
+        
+        await expect(tx).to.not.be.reverted;
+        await expect(bridge.fallback()).to.not.be.reverted;
 
+      });
+
+    });
 
  
   });

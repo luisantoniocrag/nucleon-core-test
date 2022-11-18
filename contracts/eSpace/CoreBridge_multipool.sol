@@ -83,8 +83,18 @@ contract CoreBridge_multipool is Ownable, Initializable {
 
   // ================== Methods for core pos pools settings ===============
 
-  function initialize() public initializer{
-    crossSpaceCall = CrossSpaceCall(0x0888000000000000000000000000000000000006);
+
+//  function initialize() public initializer{
+//    crossSpaceCall = CrossSpaceCall(0x0888000000000000000000000000000000000006);
+//    poolUserShareRatio = 9000;
+//    CFX_COUNT_OF_ONE_VOTE = 1000;
+//    CFX_VALUE_OF_ONE_VOTE = 1000 ether;
+//  }
+
+  // Initialize function for Testing
+
+  function initialize(address crossSpaceCallAddress) public initializer{
+    crossSpaceCall = CrossSpaceCall(crossSpaceCallAddress);
     poolUserShareRatio = 9000;
     CFX_COUNT_OF_ONE_VOTE = 1000;
     CFX_VALUE_OF_ONE_VOTE = 1000 ether;
@@ -175,10 +185,10 @@ contract CoreBridge_multipool is Ownable, Initializable {
 
   //------------------------espace method---------------------------------
 
-  function queryespacexCFXincrease() internal returns (uint256) {
-    bytes memory rawCrossingVotes = crossSpaceCall.callEVM(bytes20(eSpaceExroomAddress), abi.encodeWithSignature("crossingVotes()"));
-    return abi.decode(rawCrossingVotes, (uint256));
-  }
+  // function queryespacexCFXincrease() internal returns (uint256) {
+  //   bytes memory rawCrossingVotes = crossSpaceCall.callEVM(bytes20(eSpaceExroomAddress), abi.encodeWithSignature("crossingVotes()"));
+  //   return abi.decode(rawCrossingVotes, (uint256));
+  // }
 
   // function queryUnstakeLen() public view returns (uint256) {
   //   bytes memory rawUnstakeLen = crossSpaceCall.staticCallEVM(bytes20(eSpaceExroomAddress), abi.encodeWithSignature("unstakeLen()"));
@@ -186,11 +196,11 @@ contract CoreBridge_multipool is Ownable, Initializable {
   // }
 
   //-------------------core pool method------------------------------------
-  function queryInterest(uint256 _num) internal view returns (uint256) {
-    IExchange posPool = IExchange(poolAddress[_num]);
-    uint256 interest = posPool.temp_Interest();
-    return interest;
-  }
+  // function queryInterest(uint256 _num) internal view returns (uint256) {
+  //   IExchange posPool = IExchange(poolAddress[_num]);
+  //   uint256 interest = posPool.temp_Interest();
+  //   return interest;
+  // }
 
   //---------------------bridge method-------------------------------------
   function syncALLwork() public Only_trusted_trigers returns(uint256[11] memory infos){
