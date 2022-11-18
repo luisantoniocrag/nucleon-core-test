@@ -8,6 +8,8 @@ const errorMessages = {
   onlyOwner: "Ownable: caller is not the owner",
   noClaimableInterest: "No claimable interest",
   cfxTransferFailed: "CFX Transfer Failed",
+  increaseStakeMinVotePower: "Minimal votePower is 1",
+  increaseStakeMsgValue : "msg.value should be votePower * 1000 ether"
 };
 
 describe("PoSPoolmini", async function () {
@@ -554,49 +556,69 @@ describe("PoSPoolmini", async function () {
       expect(String(poolSummary.totalvotes)).to.be.equal("1");
 
       //deposit 1 votes by user 1
-      await bridge.connect(accounts[1]).campounds(1, {
+      await expect(bridge.connect(accounts[1]).campounds(1, {
         value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
-      });
+      })).to.eventually.emit("IncreasePoSStake");
 
       //deposit 7 votes by user 2
-      await bridge.connect(accounts[2]).campounds(7, {
+      await expect(bridge.connect(accounts[2]).campounds(7, {
         value: ethers.utils.parseEther(`${7 * ONE_VOTE_CFX}`),
-      });
+      })).to.eventually.emit("IncreasePoSStake");
 
-      await bridge.connect(accounts[3]).campounds(5, {
+      await expect(bridge.connect(accounts[3]).campounds(5, {
         value: ethers.utils.parseEther(`${5 * ONE_VOTE_CFX}`),
-      });
+      })).to.eventually.emit("IncreasePoSStake");
+
       poolSummary = await pool.poolSummary();
       expect(String(poolSummary.totalvotes)).to.be.equal("14");
     });
 
-    it("should not increase amount", async () => {
-      const { pool, ONE_VOTE_CFX, bridge, accounts } =
+    it("should NOT increase staking amount if msg.sender is not bridge address", async () => {
+      const { pool, ONE_VOTE_CFX, accounts } =
         await registeredPoolPoSPoolminiFixture();
-
-      //check that the pool is already registered
-      expect(await pool._poolRegisted()).to.be.equal(true);
 
       //check votes is equal to 1 = only the first deposit until now
       let poolSummary = await pool.poolSummary();
       expect(String(poolSummary.totalvotes)).to.be.equal("1");
 
-      //call with string param
-      await expect(
-        bridge.connect(accounts[1]).campounds("2", {
-          value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
-        })
-      ).to.eventually.rejected;
+      //deposit 1 votes by user 1 directly instead through bridge addres
+      await expect(pool.connect(accounts[1]).increaseStake(1, {
+        value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
+      })).to.eventually.rejectedWith(errorMessages.onlybridge);
 
-      //call with diferent value and votePower
-      await expect(
-        bridge.connect(accounts[2]).campounds(3, {
-          value: ethers.utils.parseEther(`${7 * ONE_VOTE_CFX}`),
-        })
-      ).to.eventually.rejected;
-
+      //keep same votes as prev pool summary
       poolSummary = await pool.poolSummary();
       expect(String(poolSummary.totalvotes)).to.be.equal("1");
+    });
+
+    it("should NOT increase staking amount if pool address is not currently registered", async () => {
+      const { pool, bridge, ONE_VOTE_CFX, accounts } = await initializePoSPoolminiFixture();
+      //initialize and set bridge
+      await bridge.initialize(pool.address);
+      await pool._setbridges(bridge.address, bridge.address, bridge.address);
+
+      //deposit 1 votes by user 1 directly instead through bridge addres
+      await expect(bridge.connect(accounts[1]).campounds(1, {
+        value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
+      })).to.eventually.rejectedWith(errorMessages.onlyRegisted);
+    });
+
+    it("should NOT increase stakig amount if vote power is not greater than zero", async () => {
+      const { bridge, ONE_VOTE_CFX, accounts } = await registeredPoolPoSPoolminiFixture();
+
+      //deposit 1 votes by user 1 directly instead through bridge addres
+      await expect(bridge.connect(accounts[1]).campounds(0, {
+        value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
+      })).to.eventually.rejectedWith(errorMessages.increaseStakeMinVotePower);
+    });
+
+    it("should NOT increase stakig amount if msg.value is not equal to votePower * CFX_VALUE_OF_ONE_VOTE", async () => {
+      const { bridge, ONE_VOTE_CFX, accounts } = await registeredPoolPoSPoolminiFixture();
+
+      //deposit 1 votes by user 1 directly instead through bridge addres
+      await expect(bridge.connect(accounts[1]).campounds(2, {
+        value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
+      })).to.eventually.rejectedWith(errorMessages.increaseStakeMsgValue);
     });
   });
 
@@ -973,9 +995,11 @@ describe("PoSPoolmini", async function () {
     it("should restake account's retired votes", async () => {
       const { pool, bridge, accounts, ONE_VOTE_CFX } =
         await registeredPoolPoSPoolminiFixture();
-      
+
       //update _setLockPeriod in order to have balances in _poolSummary.available to be restaked
-      await expect(pool._setLockPeriod(0, 0)).to.eventually.emit("SetLockPeriod");
+      await expect(pool._setLockPeriod(0, 0)).to.eventually.emit(
+        "SetLockPeriod"
+      );
 
       //stake
       await bridge.connect(accounts[1]).campounds(1, {
@@ -986,18 +1010,18 @@ describe("PoSPoolmini", async function () {
         value: ethers.utils.parseEther(`${2 * ONE_VOTE_CFX}`),
       });
 
-      console.log("prevUnstake:",await pool.poolSummary());
+      //console.log("prevUnstake:", await pool.poolSummary());
 
       //unstake
       await bridge.connect(accounts[1]).handleUnstake(1);
       await bridge.connect(accounts[2]).handleUnstake(2);
 
-      console.log("afterUnstake:",await pool.poolSummary());
+      //console.log("afterUnstake:", await pool.poolSummary());
 
       //restake by admin
       await expect(pool._reStake(3)).to.eventually.emit("ReStake");
 
-      console.log("after reStake:",await pool.poolSummary());
+      //console.log("after reStake:", await pool.poolSummary());
     });
     it("should NOT restake account's retired votes if msg.sender is not the contract owner", async () => {
       const { pool, accounts } = await registeredPoolPoSPoolminiFixture();
