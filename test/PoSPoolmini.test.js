@@ -11,6 +11,7 @@ const errorMessages = {
   increaseStakeMinVotePower: "Minimal votePower is 1",
   increaseStakeMsgValue: "msg.value should be votePower * 1000 ether",
   decreaseStakeVPNotEnough: "Votes is not enough",
+  cfxTransferFailed: "CFX Transfer Failed",
 };
 
 describe("PoSPoolmini", async function () {
@@ -713,7 +714,7 @@ describe("PoSPoolmini", async function () {
       expect(String(poolSummary.totalvotes)).to.be.equal("2");
     });
 
-    it("should NOT decrease staking amount if if pool address is not currently registered", async () => {
+    it("should NOT decrease staking amount if pool address is not currently registered", async () => {
       const { pool, bridge, accounts } = await initializePoSPoolminiFixture();
       //initialize and set bridge
       await bridge.initialize(pool.address);
@@ -751,19 +752,142 @@ describe("PoSPoolmini", async function () {
   });
 
   describe("withdrawStake()", function () {
-    it("should withdraw staked founds", async () => {
-      const { bridge, ONE_VOTE_CFX, accounts } =
+    it("should withdraw staked funds", async () => {
+      const { pool, bridge, ONE_VOTE_CFX, accounts } =
         await registeredPoolPoSPoolminiFixture();
 
-      //stake
+      //update lock in/out period in order to test it
+      await pool._setLockPeriod(0, 0);
+
+      expect(
+        Number(await ethers.provider.getBalance(bridge.address))
+      ).to.be.equal(0);
+
+      //stake by user 1 - 1 votes
       await bridge.connect(accounts[1]).campounds(1, {
         value: ethers.utils.parseEther(`${1 * ONE_VOTE_CFX}`),
       });
+
+      //stake by user 2 - 3 votes
+      await bridge.connect(accounts[2]).campounds(3, {
+        value: ethers.utils.parseEther(`${3 * ONE_VOTE_CFX}`),
+      });
+
+      //unstake
+      await bridge.connect(accounts[1]).handleUnstake(1);
+      await bridge.connect(accounts[2]).handleUnstake(3);
+
+      //withdraw
+      await bridge.connect(accounts[1]).withdrawVotes();
+
+      expect(
+        Number(await ethers.provider.getBalance(bridge.address))
+      ).to.be.equal(4000e18);
+    });
+
+    it("should NOT withdraw staking funds if msg.sender is not bridge address", async () => {
+      const { pool, bridge, ONE_VOTE_CFX, accounts } =
+        await registeredPoolPoSPoolminiFixture();
+
+      //update lock in/out period in order to test it
+      await pool._setLockPeriod(0, 0);
+
+      expect(
+        Number(await ethers.provider.getBalance(bridge.address))
+      ).to.be.equal(0);
+
+      //stake by user 1 - 1 votes
+      await bridge.connect(accounts[1]).campounds(1, {
+        value: ethers.utils.parseEther(`${1 * ONE_VOTE_CFX}`),
+      });
+
+      //unstake
+      await bridge.connect(accounts[1]).handleUnstake(1);
+
+      //withdraw but calling directly instead through bridge address
+      await expect(
+        pool.connect(accounts[1]).withdrawStake()
+      ).to.eventually.rejectedWith(errorMessages.onlybridge);
+
+      expect(
+        Number(await ethers.provider.getBalance(bridge.address))
+      ).to.be.equal(0);
+    });
+
+    it("should NOT withdraw staking funds if pool address is not currently registered", async () => {
+      const { pool, bridge, ONE_VOTE_CFX, accounts } =
+        await initializePoSPoolminiFixture();
+
+      //initialize and set bridge
+      await bridge.initialize(pool.address);
+      await pool._setbridges(bridge.address, bridge.address, bridge.address);
+
+      //update lock in/out period in order to test it
+      await pool._setLockPeriod(0, 0);
+
+      expect(
+        Number(await ethers.provider.getBalance(bridge.address))
+      ).to.be.equal(0);
+
+      //withdraw but calling directly instead through bridge address
+      await expect(
+        bridge.connect(accounts[1]).withdrawVotes()
+      ).to.eventually.rejectedWith(errorMessages.onlyRegisted);
+
+      expect(
+        Number(await ethers.provider.getBalance(bridge.address))
+      ).to.be.equal(0);
+    });
+
+    it("should NOT withdraw staking funds if internal tx is not success", async () => {
+      const {
+        pool,
+        ONE_VOTE_CFX,
+        accounts,
+        IDENTIFIER,
+        blsPubKey,
+        vrfPubKey,
+        blsPubKeyProof,
+      } = await initializePoSPoolminiFixture();
+
+      const Bridge = await ethers.getContractFactory(
+        "MockCoreBridge_multipool_nonPayable"
+      );
+      const bridge = await Bridge.deploy();
+      await bridge.deployed();
+
+      //register pool with 1000 CFX
+      await pool.register(IDENTIFIER, 1, blsPubKey, vrfPubKey, blsPubKeyProof, {
+        value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
+      });
+
+      //initialize and set bridge
+      await bridge.initialize(pool.address);
+      await pool._setbridges(bridge.address, bridge.address, bridge.address);
+
+      //update lock in/out period in order to test it
+      await pool._setLockPeriod(0, 0);
+
+      expect(
+        Number(await ethers.provider.getBalance(bridge.address))
+      ).to.be.equal(0);
+
+      //stake by user 1 - 1 votes
+      await bridge.connect(accounts[1]).campounds(1, {
+        value: ethers.utils.parseEther(`${1 * ONE_VOTE_CFX}`),
+      });
+
       //unstake
       await bridge.connect(accounts[1]).handleUnstake(1);
 
       //withdraw
-      await bridge.connect(accounts[1]).withdrawVotes();
+      await expect(
+        bridge.connect(accounts[1]).withdrawVotes()
+      ).to.eventually.rejectedWith(errorMessages.cfxTransferFailed);
+
+      expect(
+        Number(await ethers.provider.getBalance(bridge.address))
+      ).to.be.equal(0);
     });
   });
 
