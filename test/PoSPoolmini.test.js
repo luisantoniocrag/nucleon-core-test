@@ -16,6 +16,8 @@ const errorMessages = {
   increaseStakeMsgValue: "msg.value should be votePower * 1000 ether",
   decreaseStakeVPNotEnough: "Votes is not enough",
   cfxTransferFailed: "CFX Transfer Failed",
+  tooLongInQueues: "TOO long Inqueues!",
+  tooLongOutQueues: "TOO long queues!"
 };
 
 describe("PoSPoolmini", async function () {
@@ -551,7 +553,7 @@ describe("PoSPoolmini", async function () {
     });
   });
 
-  describe("increaseState()", async function () {
+  describe("increaseStake()", async function () {
     it("should increase staking amount", async () => {
       const { pool, ONE_VOTE_CFX, bridge, accounts } =
         await registeredPoolPoSPoolminiFixture();
@@ -633,7 +635,7 @@ describe("PoSPoolmini", async function () {
         })
       ).to.eventually.rejectedWith(errorMessages.increaseStakeMinVotePower);
     });
-
+    
     it("should NOT increase stakig amount if msg.value is not equal to votePower * CFX_VALUE_OF_ONE_VOTE", async () => {
       const { bridge, ONE_VOTE_CFX, accounts } =
         await registeredPoolPoSPoolminiFixture();
@@ -754,9 +756,121 @@ describe("PoSPoolmini", async function () {
 
       poolSummary = await pool.poolSummary();
       expect(String(poolSummary.totalvotes)).to.be.equal("2");
+  });
+  
+  describe("too long queues", async () => {
+    it("should NOT increase/decrease staking amount if there is too long queues", async () => {
+      const { ONE_VOTE_CFX, bridge, accounts, pool } =
+        await registeredPoolPoSPoolminiFixture();
+
+      for (let i = 0; i < 50; i++) {
+        await expect(
+          bridge.connect(accounts[1]).campounds(1, {
+            value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
+          })
+        ).to.eventually.emit("IncreasePoSStake");
+        await expect(
+          bridge.connect(accounts[1]).handleUnstake(1)
+        ).to.eventually.emit("DecreasePoSStake");
+
+        await expect(
+          bridge.connect(accounts[2]).campounds(1, {
+            value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
+          })
+        ).to.eventually.emit("IncreasePoSStake");
+        await expect(
+          bridge.connect(accounts[2]).handleUnstake(1)
+        ).to.eventually.emit("DecreasePoSStake");
+
+        await expect(
+          bridge.connect(accounts[3]).campounds(1, {
+            value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
+          })
+        ).to.eventually.emit("IncreasePoSStake");
+        await expect(
+          bridge.connect(accounts[3]).handleUnstake(1)
+        ).to.eventually.emit("DecreasePoSStake");
+
+        await expect(
+          bridge.connect(accounts[4]).campounds(1, {
+            value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
+          })
+        ).to.eventually.emit("IncreasePoSStake");
+        await expect(
+          bridge.connect(accounts[4]).handleUnstake(1)
+        ).to.eventually.emit("DecreasePoSStake");
+
+        await expect(
+          bridge.connect(accounts[5]).campounds(1, {
+            value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
+          })
+        ).to.eventually.emit("IncreasePoSStake");
+        await expect(
+          bridge.connect(accounts[5]).handleUnstake(1)
+        ).to.eventually.emit("DecreasePoSStake");
+
+        await expect(
+          bridge.connect(accounts[6]).campounds(1, {
+            value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
+          })
+        ).to.eventually.emit("IncreasePoSStake");
+        await expect(
+          bridge.connect(accounts[6]).handleUnstake(1)
+        ).to.eventually.emit("DecreasePoSStake");
+
+        await expect(
+          bridge.connect(accounts[7]).campounds(1, {
+            value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
+          })
+        ).to.eventually.emit("IncreasePoSStake");
+        await expect(
+          bridge.connect(accounts[7]).handleUnstake(1)
+        ).to.eventually.emit("DecreasePoSStake");
+
+        await expect(
+          bridge.connect(accounts[8]).campounds(1, {
+            value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
+          })
+        ).to.eventually.emit("IncreasePoSStake");
+        await expect(
+          bridge.connect(accounts[8]).handleUnstake(1)
+        ).to.eventually.emit("DecreasePoSStake");
+
+        await expect(
+          bridge.connect(accounts[9]).campounds(1, {
+            value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
+          })
+        ).to.eventually.emit("IncreasePoSStake");
+        await expect(
+          bridge.connect(accounts[9]).handleUnstake(1)
+        ).to.eventually.emit("DecreasePoSStake");
+
+        await expect(
+          bridge.connect(accounts[10]).campounds(1, {
+            value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
+          })
+        ).to.eventually.emit("IncreasePoSStake");
+        await expect(
+          bridge.connect(accounts[10]).handleUnstake(1)
+        ).to.eventually.emit("DecreasePoSStake");
+
+        process.stdout.write(
+          `\r increasing queue to: ${(await pool.getInQueue()).length}/500`
+        );
+      }
+
+      await expect(
+        bridge.connect(accounts[1]).campounds(1, {
+          value: ethers.utils.parseEther(`${ONE_VOTE_CFX}`),
+        })
+      ).to.eventually.rejectedWith(errorMessages.tooLongInQueues);
+
+      await expect(
+        bridge.connect(accounts[1]).handleUnstake(1)
+      ).to.eventually.rejectedWith(errorMessages.tooLongOutQueues);
     });
   });
-
+  
   describe("withdrawStake()", function () {
     it("should withdraw staked funds", async () => {
       const { pool, bridge, ONE_VOTE_CFX, accounts } =
@@ -1033,8 +1147,8 @@ describe("PoSPoolmini", async function () {
       });
 
       const getInQueue = await pool.getInQueue();
-      //getInQueue[1] because the getInQueue[0] is the initial register in queue
-      const { votePower, endBlock } = getInQueue[1];
+
+      const { votePower, endBlock } = getInQueue[0];
 
       expect(String(votePower)).to.be.equal(`${votes}`);
       expect(Number(endBlock)).to.be.greaterThan(0);
@@ -1214,3 +1328,4 @@ describe("PoSPoolmini", async function () {
     });
   });
 });
+})
