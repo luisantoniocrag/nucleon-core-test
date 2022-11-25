@@ -208,7 +208,7 @@ contract Exchangeroom is Ownable,Initializable {
     userSummaries[msg.sender].unlocking += cfx_back;
 
     collectOutqueuesFinishedVotes() ;
-    require(userOutqueues[msg.sender].queueLength()<100,"TOO long queues!");
+    require(userOutqueues[msg.sender].queueLength()<36,"TOO long queues!");
     _unstakeCFXs += cfx_back;
     IXCFX(xCFX_address).burnTokens(msg.sender, _amount);
     emit DecreasePoSStake(msg.sender, cfx_back);
