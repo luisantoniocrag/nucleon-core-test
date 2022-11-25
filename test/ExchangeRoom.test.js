@@ -29,7 +29,7 @@ describe("Exchangeroom", async function () {
 
     /// xcfx Deployment
 
-    const MockXCFX = await ethers.getContractFactory("XCFX");
+    const MockXCFX = await ethers.getContractFactory("XCFXDebug");
     const xcfx = await MockXCFX.deploy();
 
     /// CoreBridge Deployment
@@ -104,8 +104,6 @@ describe("Exchangeroom", async function () {
       }); 
     });
 
-
-
     describe("getSettings() Tests", async () => {
       
       
@@ -135,7 +133,6 @@ describe("Exchangeroom", async function () {
 
     });
 
-
     describe("Summary() Tests", async () => {
       
       
@@ -155,7 +152,6 @@ describe("Exchangeroom", async function () {
 
     });
 
-
     describe("userSummary() Tests", async () => {
       it('userSummary should return Zero', async function () {
         const { exchangeroom } = await deployExchangeroomFixture();
@@ -171,7 +167,6 @@ describe("Exchangeroom", async function () {
 
 
     });
-
 
     describe("CFX_burn_estim() Tests", async () => {
             
@@ -189,7 +184,6 @@ describe("Exchangeroom", async function () {
 
     });
 
-
     describe("collectOutqueuesFinishedVotes() Tests", async () => {
       
       
@@ -205,7 +199,6 @@ describe("Exchangeroom", async function () {
 
 
     });
-
 
     describe("userOutQueue() Tests", async () => {
       
@@ -262,7 +255,6 @@ describe("Exchangeroom", async function () {
 
     });
 
-
     describe("XCFX_burn() Tests", async () => {
       
       it(`XCFX_burn should be reverted`, async function () {
@@ -279,18 +271,67 @@ describe("Exchangeroom", async function () {
           ).to.be.reverted;  
       });
 
-      it(`XCFX_burn should work`, async function () {
+      it('it should NOT burn xCFX tokens if there is not enough CFX balances in the contract', async () => {
         const { exchangeroom , accounts, xcfx } = await deployExchangeroomFixture();
         
         const amount = parseEther(`1000`);
-  
-      
         
         await xcfx.addMinter(accounts[0].address);
         await xcfx.addMinter(exchangeroom.address);
 
         await exchangeroom.initialize(xcfx.address, amount, { value: amount });       
-           
+          
+        await exchangeroom.connect(accounts[0])._setBridge(accounts[1].address);
+        await exchangeroom._setXCFXaddr(xcfx.address);
+        
+        await exchangeroom._setminexchangelimits(parseEther(`1`));
+
+        //get 1000 xCFX
+        await expect (exchangeroom.connect(accounts[2]).CFX_exchange_XCFX({value : parseEther(`1000`)})).to.not.be.reverted;
+
+        //mint 1000 xCFX to account 2 from a minter
+        await xcfx.connect(accounts[0]).mintWithoutAffectTotalSupply(accounts[2].address, parseEther(`2000`));
+
+        //try to burn 2000 xCFX from account 2
+        await expect(exchangeroom.connect(accounts[2]).XCFX_burn(parseEther(`3000`))).to.eventually.rejectedWith("Exceed exchange limit");
+      });
+
+      it ('should not burn XCFX if queue is greather than 35', async () => {
+        const { exchangeroom , accounts, xcfx } = await deployExchangeroomFixture();
+        
+        const amount = parseEther(`1000`);
+        
+        await xcfx.addMinter(accounts[0].address);
+        await xcfx.addMinter(exchangeroom.address);
+
+        await exchangeroom.initialize(xcfx.address, amount, { value: amount });       
+          
+        await exchangeroom.connect(accounts[0])._setBridge(accounts[1].address);
+        await exchangeroom._setXCFXaddr(xcfx.address);
+        
+        await exchangeroom._setminexchangelimits(parseEther(`1`));
+
+        //repeat 36 times
+        for (let i = 0; i < 35; i++) {
+          await exchangeroom.CFX_exchange_XCFX({value : parseEther(`10`)});
+          await exchangeroom.XCFX_burn(parseEther(`10`));
+
+          process.stdout.write(
+            `\r increasing queue to: ${i + 1}/35`
+          );
+        }
+        await expect(exchangeroom.XCFX_burn(parseEther(`10`))).to.eventually.rejectedWith("TOO long queues!");
+      });
+
+      it(`XCFX_burn should work`, async function () {
+        const { exchangeroom , accounts, xcfx } = await deployExchangeroomFixture();
+        
+        const amount = parseEther(`1000`);
+        
+        await xcfx.addMinter(accounts[0].address);
+        await xcfx.addMinter(exchangeroom.address);
+
+        await exchangeroom.initialize(xcfx.address, amount, { value: amount });       
           
         await exchangeroom.connect(accounts[0])._setBridge(accounts[1].address);
         await exchangeroom._setXCFXaddr(xcfx.address);
@@ -299,16 +340,12 @@ describe("Exchangeroom", async function () {
 
         await expect (exchangeroom.CFX_exchange_XCFX({value : parseEther(`20`)})).to.not.be.reverted;
 
-                      
         await expect (exchangeroom.XCFX_burn(parseEther(`0.5`))).to.be.reverted;
         await expect (exchangeroom.XCFX_burn(parseEther(`100000`))).to.be.reverted;
-        await expect (exchangeroom.XCFX_burn(parseEther(`10`))).to.not.be.reverted;
-
-           
+        await expect (exchangeroom.XCFX_burn(parseEther(`10`))).to.not.be.reverted;           
       });
 
     });
-
 
     describe("getback_CFX() Tests", async () => {
       
@@ -319,12 +356,10 @@ describe("Exchangeroom", async function () {
           ).to.be.reverted;   
       });
 
-      it(`getback_CFX should work`, async function () {
+      it(`it should NOT execute if internal transactions is not success`, async function () {
         const { exchangeroom , accounts, xcfx } = await deployExchangeroomFixture();
         
         const amount = parseEther(`1000`);
-  
-      
         
         await xcfx.addMinter(accounts[0].address);
         await xcfx.addMinter(exchangeroom.address);
@@ -333,7 +368,74 @@ describe("Exchangeroom", async function () {
 
         await exchangeroom.initialize(xcfx.address, amount, { value: amount });       
            
-          
+        await exchangeroom.connect(accounts[0])._setBridge(accounts[1].address);
+        await exchangeroom._setXCFXaddr(xcfx.address);
+        
+        await exchangeroom._setminexchangelimits(1);
+
+        //set mockBridge non-payable
+        const BridgeMockNonPayabe = await ethers.getContractFactory("MockCoreBridge_multipool_nonPayable");
+        const bridgeMockNonPayable = await BridgeMockNonPayabe.deploy();
+        await bridgeMockNonPayable.deployed();
+
+        //get 20 xCFx from coreBridgeMock contract (non-payable contract)
+        await expect (
+          bridgeMockNonPayable.Exchangeroom_exchangeBalances(exchangeroom.address,{value : parseEther(`20`)})
+        ).to.not.be.reverted;
+        
+        //check bridge contract has 20 xCFX 
+        expect((Number(await xcfx.balanceOf(bridgeMockNonPayable.address)))).to.be.equal(20e18);
+
+        await exchangeroom._setLockPeriod(0,0);
+
+        await expect(bridgeMockNonPayable.Exchangeroom_getback_CFX(exchangeroom.address,0)).to.eventually.rejectedWith("CFX Transfer Failed");
+      });
+
+      it(`it should NOT execute if try to withdraw more than unlocked funds`, async function () {
+        const { exchangeroom , accounts, xcfx } = await deployExchangeroomFixture();
+        
+        const amount = parseEther(`1000`);
+        
+        await xcfx.addMinter(accounts[0].address);
+        await xcfx.addMinter(exchangeroom.address);
+        await expect(exchangeroom.initialize(xcfx.address, amount, { value: 0 })).to.be.reverted;       
+        await expect(exchangeroom.initialize(zeroAddress, amount, { value: amount })).to.be.reverted;       
+
+        await exchangeroom.initialize(xcfx.address, amount, { value: amount });       
+           
+        await exchangeroom.connect(accounts[0])._setBridge(accounts[1].address);
+        await exchangeroom._setXCFXaddr(xcfx.address);
+        
+        await exchangeroom._setminexchangelimits(1);
+        
+        //deposit by exchanging 20 CFX
+        await expect (exchangeroom.connect(accounts[1]).CFX_exchange_XCFX({value : parseEther(`200`)})).to.not.be.reverted;
+        //deposit by exchanging another 20 CFX to avoid first required
+        await expect (exchangeroom.connect(accounts[2]).CFX_exchange_XCFX({value : parseEther(`20`)})).to.not.be.reverted;
+
+        //send 10 xCFX to account 1 TEST FUNCTION
+        await xcfx.mintWithoutAffectTotalSupply(accounts[1].address, parseEther(`10`));
+
+        await exchangeroom._setLockPeriod(0,0);
+
+
+        await exchangeroom.connect(accounts[1]).XCFX_burn(parseEther(`200`));
+
+        await expect(exchangeroom.connect(accounts[1]).getback_CFX(parseEther(`201`))).to.eventually.rejectedWith("your Unlocked CFX is not enough")
+      });
+
+      it(`getback_CFX should work`, async function () {
+        const { exchangeroom , accounts, xcfx } = await deployExchangeroomFixture();
+        
+        const amount = parseEther(`1000`);
+        
+        await xcfx.addMinter(accounts[0].address);
+        await xcfx.addMinter(exchangeroom.address);
+        await expect(exchangeroom.initialize(xcfx.address, amount, { value: 0 })).to.be.reverted;       
+        await expect(exchangeroom.initialize(zeroAddress, amount, { value: amount })).to.be.reverted;       
+
+        await exchangeroom.initialize(xcfx.address, amount, { value: amount });       
+           
         await exchangeroom.connect(accounts[0])._setBridge(accounts[1].address);
         await exchangeroom._setXCFXaddr(xcfx.address);
         
@@ -346,14 +448,13 @@ describe("Exchangeroom", async function () {
         await expect (exchangeroom.XCFX_burn(parseEther(`10`))).to.not.be.reverted;
         await expect (exchangeroom.getback_CFX(parseEther(`1000000`))).to.be.reverted;
         await expect (exchangeroom.getback_CFX(parseEther(`21`))).to.be.reverted;
-        await expect (exchangeroom.getback_CFX(parseEther(`10`))).to.not.be.reverted;
+        await expect (exchangeroom.getback_CFX(parseEther(`10`))).to.eventually.emit("WithdrawStake");
 
         await xcfx.addTokens(accounts[0].address,parseEther(`10000000`));
         await expect (exchangeroom.getback_CFX(parseEther(`1000000`))).to.be.reverted;
       });
 
     });
-
 
     describe("_setLockPeriod() Tests", async () => {
       
@@ -378,7 +479,6 @@ describe("Exchangeroom", async function () {
 
     });
 
-
     describe("_setminexchangelimits() Tests", async () => {
       
       it(`_setminexchangelimits should be reverted`, async function () {
@@ -390,7 +490,6 @@ describe("Exchangeroom", async function () {
 
 
     });
-
 
     describe("_setPoolName() Tests", async () => {
       
@@ -543,6 +642,68 @@ describe("Exchangeroom", async function () {
           ).to.be.reverted;  
       });
 
+      it("it should NOT handle exchange xCFX if internal transaction is not success", async () => {
+        const { exchangeroom , accounts, xcfx } = await deployExchangeroomFixture();
+
+        await exchangeroom.connect(accounts[0])._setBridge(accounts[0].address);
+    
+        const amount = parseEther(`1000`);
+
+        await expect(await accounts[0].sendTransaction({to: exchangeroom.address, value: amount}))
+        .to.changeEtherBalance(exchangeroom.address, amount);
+
+        await expect(await accounts[0].sendTransaction({to: accounts[1].address, value: amount}))
+        .to.changeEtherBalance(accounts[1].address, amount);
+
+        await xcfx.connect(accounts[0]).addMinter(accounts[0].address);
+
+        await xcfx.connect(accounts[0]).addTokens(accounts[0].address, amount);
+
+        await xcfx.connect(accounts[0]).transfer(exchangeroom.address, amount);
+      
+        await xcfx.addMinter(accounts[0].address);
+        await xcfx.addMinter(exchangeroom.address);
+
+        await xcfx.addTokens(exchangeroom.address,amount);
+        await xcfx.addTokens(accounts[0].address,amount);
+        
+        await exchangeroom.initialize(xcfx.address, amount, { value: amount });       
+            
+        await exchangeroom.connect(accounts[0])._setBridge(accounts[0].address);
+        await exchangeroom._setXCFXaddr(xcfx.address);
+        
+        await exchangeroom._setminexchangelimits(1);
+        await exchangeroom._setLockPeriod(0,0);
+        await exchangeroom.setlockedvotes(parseEther(`2000`));
+
+        await exchangeroom._setStorageaddr(accounts[0].address);
+        await exchangeroom._setstorageBridge(accounts[0].address);
+
+        await exchangeroom.setxCFXValue(parseEther(`1`));
+
+        await expect (exchangeroom.CFX_exchange_XCFX({value : parseEther(`20`)})).to.not.be.reverted;
+
+        await expect (exchangeroom.XCFX_burn(parseEther(`10`))).to.not.be.reverted;
+
+        await expect (exchangeroom.getback_CFX(parseEther(`10`))).to.not.be.reverted;
+
+        await exchangeroom._setCoreExchange(accounts[0].address);   
+        
+        await expect(
+            exchangeroom.handleCFXexchangeXCFX({from: accounts[0].address, value: 0})
+        ).to.be.reverted;   
+
+        //non-payable bridge
+        const MockBridgeNonPayable = await ethers.getContractFactory("MockCoreBridge_multipool_nonPayable");
+        const mockBridgeNonPayable = await MockBridgeNonPayable.deploy();
+        await mockBridgeNonPayable.deployed();
+
+        // set Bridge to non payable bridge
+        await exchangeroom.connect(accounts[0])._setBridge(mockBridgeNonPayable.address);
+
+        await expect(mockBridgeNonPayable.Exchangeroom_handleCFXexchangeXCFX(exchangeroom.address, {value: 1})).to.eventually.rejectedWith("CFX Transfer Failed");
+      }); 
+
       it("handleCFXexchangeXCFX should work", async function () {
           const { exchangeroom , accounts, xcfx } = await deployExchangeroomFixture();
 
@@ -629,7 +790,6 @@ describe("Exchangeroom", async function () {
       
 
     });
-
 
     describe("handleUnstake() Tests", async () => {
       
@@ -831,6 +991,7 @@ describe("Exchangeroom", async function () {
 
 
     });
+
     describe("fallback Test", async () => {
 
         it("fallback should work", async function () {
@@ -848,10 +1009,6 @@ describe("Exchangeroom", async function () {
 
         });
 
-      });
-
-
+    });
   });
-
- 
 });
