@@ -1081,6 +1081,177 @@ describe("CoreBridge", async function () {
       });
     });
 
+    describe("claimInterests() Tests", function() {
+      it('should NOT execute if msg.sender is not trusted triger', async () => {
+        const CoreMock = await ethers.getContractFactory("CoreBridge_multipoolDebug");
+        const coreBridgeMock = await CoreMock.deploy();
+        await coreBridgeMock.initialize(ethers.Wallet.createRandom().address);
+
+        await expect(coreBridgeMock._claimInterests()).to.be.revertedWith("trigers must be trusted");
+      });
+    });
+
+    describe("campounds() Tests", function() {
+      it('should NOT execute if msg.sender is not trusted triger', async () => {
+        const CoreMock = await ethers.getContractFactory("CoreBridge_multipoolDebug");
+        const coreBridgeMock = await CoreMock.deploy();
+        await coreBridgeMock.initialize(ethers.Wallet.createRandom().address);
+
+        await expect(coreBridgeMock._campounds()).to.be.revertedWith("trigers must be trusted");
+      });
+      
+      it('should NOT execute if identifier is not 0', async () => {
+        const {accounts, exchangeroom, xcfx, CrossSpaceCall, pool, MappedAddress} = await deployCoreBridgeFixture();
+
+        const CoreMock = await ethers.getContractFactory("CoreBridge_multipoolDebug");
+        const coreBridgeMock = await CoreMock.deploy();
+        await coreBridgeMock.initialize(CrossSpaceCall.address);
+
+        await pool._setbridges(coreBridgeMock.address, coreBridgeMock.address, coreBridgeMock.address);
+
+        await coreBridgeMock._seteSpaceExroomAddress(exchangeroom.address);
+
+        await xcfx.addMinter(accounts[0].address);
+        await xcfx.addMinter(exchangeroom.address);
+        await xcfx.addMinter(MappedAddress.address);
+
+        await CrossSpaceCall.setMockMapped(accounts[0].address, MappedAddress.address);
+        await CrossSpaceCall.setMockMapped(coreBridgeMock.address, MappedAddress.address);
+
+        await exchangeroom.initialize(xcfx.address, parseEther(`1`), { value: parseEther(`1`) });
+        await exchangeroom._setBridge(coreBridgeMock.address); 
+
+        await coreBridgeMock._settrustedtrigers(accounts[0].address, true);
+
+        await coreBridgeMock._campounds();
+        await expect(coreBridgeMock._campounds()).to.eventually.rejectedWith("identifier is not right, need be 0");
+      });
+    });
+
+    describe("handleUnstake() Tests", function() {
+      it('should NOT execute if msg.sender is not trusted triger', async () => {
+        const CoreMock = await ethers.getContractFactory("CoreBridge_multipoolDebug");
+        const coreBridgeMock = await CoreMock.deploy();
+        await coreBridgeMock.initialize(ethers.Wallet.createRandom().address);
+
+        await expect(coreBridgeMock._handleUnstake()).to.be.revertedWith("trigers must be trusted");
+      });
+
+      it('should NOT execute if identifier is not 1', async () => {
+        const CoreMock = await ethers.getContractFactory("CoreBridge_multipoolDebug");
+        const coreBridgeMock = await CoreMock.deploy();
+        await coreBridgeMock.initialize(ethers.Wallet.createRandom().address);
+        const {accounts} = await deployCoreBridgeFixture();
+
+        await coreBridgeMock._settrustedtrigers(accounts[0].address, true);
+
+        await expect(coreBridgeMock._handleUnstake()).to.be.revertedWith("identifier is not right, need be 1");
+      });
+
+      it('should NOT execute if receivedUnstakeCFXs > availableCFX in POS', async () => {
+        const {
+          accounts,
+          exchangeroom,
+          xcfx, 
+          CrossSpaceCall,
+          pool,
+          MappedAddress,
+          IDENTIFIER,
+          blsPubKey,
+          vrfPubKey, 
+          blsPubKeyProof
+        } = await deployCoreBridgeFixture();
+
+        const CoreMock = await ethers.getContractFactory("CoreBridge_multipoolDebug");
+        const coreBridgeMock = await CoreMock.deploy();
+        await coreBridgeMock.initialize(CrossSpaceCall.address);
+        await coreBridgeMock._addPoolAddress(pool.address);
+        await coreBridgeMock._seteSpaceExroomAddress(exchangeroom.address) ;  
+        await coreBridgeMock._seteSpacexCFXAddress(xcfx.address) ;  
+        await coreBridgeMock._seteSpacebridgeAddress(coreBridgeMock.address) ;  
+
+         //register pool
+         await pool.register(IDENTIFIER, 1, blsPubKey, vrfPubKey, blsPubKeyProof, {
+          value: parseEther(`1000`),
+        });
+        await pool._setbridges(coreBridgeMock.address, coreBridgeMock.address, coreBridgeMock.address);
+
+        await xcfx.addMinter(accounts[0].address);
+        await xcfx.addMinter(exchangeroom.address);
+        await xcfx.addMinter(MappedAddress.address);
+
+        await CrossSpaceCall.setMockMapped(accounts[0].address, MappedAddress.address);
+        await CrossSpaceCall.setMockMapped(coreBridgeMock.address, MappedAddress.address);
+
+        await exchangeroom.initialize(xcfx.address, parseEther(`1`), { value: parseEther(`1`) });
+        await exchangeroom._setBridge(MappedAddress.address);
+        
+        await exchangeroom._setStorageaddr(accounts[0].address);
+        await exchangeroom._setstorageBridge(accounts[0].address);
+
+        await coreBridgeMock._settrustedtrigers(accounts[0].address, true);
+        await coreBridgeMock._campounds();
+
+        //get xCFX
+        await expect(exchangeroom.CFX_exchange_XCFX({value: parseEther(`2000`)})).to.not.be.reverted;
+        //burn xCFX
+        await expect(exchangeroom.XCFX_burn(parseEther(`2000`))).to.not.be.reverted;
+
+        await expect(coreBridgeMock._handleUnstake()).to.eventually.rejectedWith("handleUnstake error, receivedUnstakeCFXs > availableCFX in POS")
+      });
+    });
+
+    describe("handleLockedvotesSUM() Tests", function() {
+      it('should NOT execute if msg.sender is not trusted triger', async () => {
+        const CoreMock = await ethers.getContractFactory("CoreBridge_multipoolDebug");
+        const coreBridgeMock = await CoreMock.deploy();
+        await coreBridgeMock.initialize(ethers.Wallet.createRandom().address);
+
+        await expect(coreBridgeMock._handleLockedvotesSUM()).to.be.revertedWith("trigers must be trusted");
+      });
+    });
+
+    describe("handleLockedvotesSUM() Tests", function() {
+      it('should NOT execute if msg.sender is not trusted triger', async () => {
+        const CoreMock = await ethers.getContractFactory("CoreBridge_multipoolDebug");
+        const coreBridgeMock = await CoreMock.deploy();
+        await coreBridgeMock.initialize(ethers.Wallet.createRandom().address);
+
+        await expect(coreBridgeMock._handleLockedvotesSUMTest()).to.be.revertedWith("trigers must be trusted");
+      });
+    });
+
+    describe("SyncValue() Tests", function() {
+      it('should NOT execute if msg.sender is not trusted triger', async () => {
+        const CoreMock = await ethers.getContractFactory("CoreBridge_multipoolDebug");
+        const coreBridgeMock = await CoreMock.deploy();
+        await coreBridgeMock.initialize(ethers.Wallet.createRandom().address);
+
+        await expect(coreBridgeMock._SyncValue()).to.be.revertedWith("trigers must be trusted");
+      });
+
+      it('should NOT execute if identifier is not 2', async () => {
+        const CoreMock = await ethers.getContractFactory("CoreBridge_multipoolDebug");
+        const coreBridgeMock = await CoreMock.deploy();
+        await coreBridgeMock.initialize(ethers.Wallet.createRandom().address);
+        const {accounts} = await deployCoreBridgeFixture();
+
+        await coreBridgeMock._settrustedtrigers(accounts[0].address, true);
+
+        await expect(coreBridgeMock._SyncValue()).to.be.revertedWith("identifier is not right, need be 2");
+      });
+    });
+
+    describe("withdrawVotes() Tests", function() {
+      it('should NOT execute if msg.sender is not trusted triger', async () => {
+        const CoreMock = await ethers.getContractFactory("CoreBridge_multipoolDebug");
+        const coreBridgeMock = await CoreMock.deploy();
+        await coreBridgeMock.initialize(ethers.Wallet.createRandom().address);
+
+        await expect(coreBridgeMock._withdrawVotes()).to.be.revertedWith("trigers must be trusted");
+      });
+    });
+
     describe("fallback() Test", async () => {
 
       it("fallback should work", async function () {
@@ -1095,12 +1266,9 @@ describe("CoreBridge", async function () {
         
         await expect(tx).to.not.be.reverted;
         await expect(bridge.fallback()).to.not.be.reverted;
-
       });
 
     });
-
- 
   });
 
 });
