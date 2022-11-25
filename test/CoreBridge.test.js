@@ -980,6 +980,105 @@ describe("CoreBridge", async function () {
 
         await expect(bridge.syncALLwork()).to.not.be.reverted;
       });
+
+      it("syncALLwork should work as expected when pool.unlocked amount is greater than zero", async () => {
+        const {
+          exchangeroom,
+          xcfx,
+          accounts,
+          pool,
+          bridge,
+          IDENTIFIER,
+          blsPubKey,
+          vrfPubKey,
+          blsPubKeyProof,
+          CrossSpaceCall,
+          MappedAddress,
+          ONE_VOTE_CFX
+        } = await deployCoreBridgeFixture();
+  
+        const amount = parseEther(`1000`);
+
+        //initializate
+        await pool.initialize();
+        await bridge.initialize(CrossSpaceCall.address);
+        await pool._setbridges(bridge.address, bridge.address, bridge.address);
+  
+        //register pool
+        await pool.register(IDENTIFIER, 1, blsPubKey, vrfPubKey, blsPubKeyProof, {
+          value: amount,
+        });
+
+        //update lock in/out period in order to test it
+        await pool._setLockPeriod(0, 0);
+
+        //check that the pool is already registered
+        expect(await pool._poolRegisted()).to.be.equal(true);
+  
+        //check votes is equal to 1 = only the first deposit until now
+        let poolSummary = await pool.poolSummary();
+        expect(String(poolSummary.totalvotes)).to.be.equal("1");
+
+        await xcfx.addMinter(accounts[0].address);
+        await xcfx.addMinter(bridge.address);
+        await xcfx.addMinter(exchangeroom.address);
+        await xcfx.addMinter(MappedAddress.address);
+        await xcfx.addMinter(CrossSpaceCall.address);
+
+        await bridge._settrustedtrigers(accounts[0].address, true) ;  
+        await bridge._settrustedtrigers(bridge.address, true) ;  
+        await bridge._settrustedtrigers(pool.address, true) ;  
+        await bridge._addPoolAddress(pool.address) ;  
+        await bridge._seteSpaceExroomAddress(exchangeroom.address) ;  
+        await bridge._seteSpacexCFXAddress(xcfx.address) ;  
+        await bridge._seteSpacebridgeAddress(bridge.address) ;  
+        await bridge._setCfxCountOfOneVote(1000) ;  
+
+        await CrossSpaceCall.setMockMapped(accounts[0].address, MappedAddress.address);
+        await CrossSpaceCall.setMockMapped(bridge.address, MappedAddress.address);
+
+        await exchangeroom.initialize(xcfx.address, amount, { value: amount });      
+        await exchangeroom.connect(accounts[0])._setBridge(accounts[0].address);
+        await exchangeroom._setXCFXaddr(xcfx.address);
+        await exchangeroom._setminexchangelimits(1);
+        await exchangeroom._setLockPeriod(0,0);
+        await exchangeroom.setlockedvotes(parseEther(`1000`));
+        await exchangeroom._setStorageaddr(accounts[0].address);
+        await exchangeroom._setstorageBridge(accounts[0].address);
+        await exchangeroom._setBridge(bridge.address); 
+        await exchangeroom._setCoreExchange(MappedAddress.address);
+
+        const tx = accounts[0].sendTransaction({
+          to: MappedAddress.address,
+          value: parseEther(`100000`),
+        });
+        await expect(tx).to.not.be.reverted;
+
+        await expect(exchangeroom.CFX_exchange_XCFX({value: parseEther(`2000`)})).to.not.be.reverted;
+        await expect(exchangeroom.XCFX_burn(parseEther(`2000`))).to.not.be.reverted; 
+        
+        const MockCoreBridge = await ethers.getContractFactory(
+          "MockCoreBridge_multipool"
+        );
+        const mockBridge = await MockCoreBridge.deploy();
+        await mockBridge.initialize(pool.address);
+        await pool._setbridges(mockBridge.address, mockBridge.address, mockBridge.address);
+
+        //stake by user 1 - 1 votes
+        await mockBridge.connect(accounts[1]).campounds(1, {
+          value: ethers.utils.parseEther(`${1 * ONE_VOTE_CFX}`),
+        });
+        //stake by user 2 - 3 votes
+        await mockBridge.connect(accounts[2]).campounds(3, {
+          value: ethers.utils.parseEther(`${3 * ONE_VOTE_CFX}`),
+        });
+        //unstake
+        await mockBridge.connect(accounts[1]).handleUnstake(1);
+        await mockBridge.connect(accounts[2]).handleUnstake(3);
+
+        await pool._setbridges(bridge.address, bridge.address, bridge.address);
+        await expect(bridge.syncALLwork()).to.not.be.reverted;
+      });
     });
 
     describe("fallback() Test", async () => {
