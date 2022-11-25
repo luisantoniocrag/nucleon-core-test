@@ -84,14 +84,6 @@ contract PoSPoolmini is PoolContext, Ownable, Initializable {
     require(msg.sender==bridge_contract, "msg.sender is not bridge");
     _;
   }
-  // // ======================== Helpers ============================
-
-  // // used to update lastPoolShot after _poolSummary.available changed 
-  // function _updatePoolShot() private {
-  //   lastPoolShot.available = _poolSummary.totalvotes;
-  //   lastPoolShot.balance = _selfBalance();
-  //   lastPoolShot.blockNumber = block.number;
-  // }
 
   // ======================== Events ==============================
 
@@ -143,17 +135,14 @@ contract PoSPoolmini is PoolContext, Ownable, Initializable {
   ) public virtual payable onlyOwner {
     require(!_poolRegisted, "Pool is already registed");
     require(votePower == 1, "votePower should be 1");
-    require(msg.value == votePower * CFX_VALUE_OF_ONE_VOTE, "msg.value should be 1000 CFX");
-    _stakingDeposit(msg.value);
-    _posRegisterRegister(indentifier, votePower, blsPubKey, vrfPubKey, blsPubKeyProof);
-    _poolRegisted = true;
-
+    require(msg.value == CFX_VALUE_OF_ONE_VOTE, "msg.value should be 1000 CFX");
     // update pool info
+    _poolRegisted = true;
     _poolSummary.totalvotes += votePower;
     _poolSummary.locking += votePower;
-    Inqueues.enqueue(VotePowerQueue.QueueNode(votePower, block.number + _poolLockPeriod_in));
-    _poolSummary.locked += Inqueues.collectEndedVotes();
-    // _updatePoolShot();
+    
+    _stakingDeposit(msg.value);
+    _posRegisterRegister(indentifier, votePower, blsPubKey, vrfPubKey, blsPubKeyProof);
   }
 
   // ======================== Contract methods , Only bridge can use =========================
@@ -166,13 +155,12 @@ contract PoSPoolmini is PoolContext, Ownable, Initializable {
     require(votePower > 0, "Minimal votePower is 1");
     require(msg.value == votePower * CFX_VALUE_OF_ONE_VOTE, "msg.value should be votePower * 1000 ether");
     collectStateFinishedVotes();
-    require(Inqueues.queueLength()<1000,"TOO long Inqueues!");
+    require(Inqueues.queueLength()<500,"TOO long Inqueues!");
     // update pool info
     _poolSummary.totalvotes += votePower;
     _poolSummary.locking += votePower;
     Inqueues.enqueue(VotePowerQueue.QueueNode(votePower, block.number + _poolLockPeriod_in));
     collectStateFinishedVotes();
-    // _updatePoolShot();
 
     _stakingDeposit(msg.value);
     _posRegisterIncreaseStake(votePower);
@@ -187,7 +175,7 @@ contract PoSPoolmini is PoolContext, Ownable, Initializable {
     uint256 tempvotes;
     collectStateFinishedVotes();
     require(_poolSummary.totalvotes >= votePower, "Votes is not enough");
-    require(Outqueues.queueLength()+OutqueuesFast.queueLength()<1000,"TOO long queues!");
+    require(Outqueues.queueLength()+OutqueuesFast.queueLength()<500,"TOO long queues!");
     // update pool info
     _poolSummary.totalvotes -= votePower;
     _poolSummary.unlocking += votePower;
@@ -201,7 +189,6 @@ contract PoSPoolmini is PoolContext, Ownable, Initializable {
       Outqueues.enqueue(VotePowerQueue.QueueNode(votePower, block.number + _poolLockPeriod_in + _poolLockPeriod_out));
     }
     
-    // _updatePoolShot();
     _posRegisterRetire(votePower);
     emit DecreasePoSStake(msg.sender, votePower);
   }
@@ -213,12 +200,10 @@ contract PoSPoolmini is PoolContext, Ownable, Initializable {
   function withdrawStake() public onlyRegisted onlybridge{
     collectStateFinishedVotes();
     uint256 temp_unlocked = _poolSummary.unlocked;
-
     _poolSummary.unlocked = 0;
 
     _stakingWithdraw(temp_unlocked * CFX_VALUE_OF_ONE_VOTE);
     address payable receiver = payable(bridge_withdraw);// withdraw CFX to bridgecoreaddr
-    // receiver.transfer(temp_unlocked * CFX_VALUE_OF_ONE_VOTE);
     (bool success, ) = receiver.call{value: temp_unlocked * CFX_VALUE_OF_ONE_VOTE}("");
     require(success,"CFX Transfer Failed");
     emit WithdrawStake(msg.sender, temp_unlocked);
