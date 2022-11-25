@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import "./IPoSPoolmini.sol";
+import "../eSpace/Exchangeroom.sol";
 
 ///This contract is use as a mock contract. only Test contract functions. 
 contract MockCoreBridge_multipool_nonPayable is Ownable, Initializable {
@@ -32,6 +33,18 @@ contract MockCoreBridge_multipool_nonPayable is Ownable, Initializable {
 
   function claimInterests() public {
     POOL.claimAllInterest();
+  }
+
+  function Exchangeroom_exchangeBalances(address _address) public payable returns(uint256) {
+    return Exchangeroom(payable(_address)).CFX_exchange_XCFX{value: msg.value}();
+  }
+
+  function Exchangeroom_getback_CFX(address _address, uint256 _amount) public {
+    Exchangeroom(payable(_address)).getback_CFX(_amount);
+  }
+
+  function Exchangeroom_handleCFXexchangeXCFX(address _address) public payable returns(uint256) {
+    return Exchangeroom(payable(_address)).handleCFXexchangeXCFX{value: msg.value}();
   }
   
 }
