@@ -20,8 +20,8 @@ module.exports = {
         mnemonic: "test test test test test test test test test test test junk",
         initialIndex: 0,
         path: "m/44'/60'/0'/0",
-        count: 5,
-        accountsBalance: "100000000000000000000000000",
+        count: 11,
+        accountsBalance: "5000000000000000000000000000",
         passphrase: ""
       }
     },
@@ -30,5 +30,8 @@ module.exports = {
       chainId: 1,
       accounts: [privateKey]
     }
+  },
+  mocha: {
+    timeout: 100000000
   }
 };

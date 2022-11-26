@@ -81,9 +81,9 @@ contract Exchangeroom is Ownable,Initializable {
     _;
   }
   // ======================== Helpers ===================================
-  function _selfBalance() internal view virtual returns (uint256) {
-    return address(this).balance;
-  }
+  // function _selfBalance() internal view virtual returns (uint256) {
+  //   return address(this).balance;
+  // }
 
   // ======================== Events ====================================
 
@@ -208,7 +208,7 @@ contract Exchangeroom is Ownable,Initializable {
     userSummaries[msg.sender].unlocking += cfx_back;
 
     collectOutqueuesFinishedVotes() ;
-    require(userOutqueues[msg.sender].queueLength()<100,"TOO long queues!");
+    require(userOutqueues[msg.sender].queueLength()<36,"TOO long queues!");
     _unstakeCFXs += cfx_back;
     IXCFX(xCFX_address).burnTokens(msg.sender, _amount);
     emit DecreasePoSStake(msg.sender, cfx_back);
@@ -231,9 +231,9 @@ contract Exchangeroom is Ownable,Initializable {
     require(address(this).balance>=_amount,"pool Unlocked CFX is not enough");
 
     collectOutqueuesFinishedVotes() ;
-    _exchangeSummary.unlockingCFX -= _amount;
 
     require(userSummaries[msg.sender].unlocked >= _amount, "your Unlocked CFX is not enough");
+    _exchangeSummary.unlockingCFX -= _amount;
     userSummaries[msg.sender].unlocked -= _amount;
     address payable receiver = payable(msg.sender);
     (bool success, ) = receiver.call{value: _amount}("");
